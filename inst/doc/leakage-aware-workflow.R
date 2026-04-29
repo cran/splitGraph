@@ -42,7 +42,7 @@ quick_graph <- graph_from_metadata(
     batch_id     = c("B1", "B2", "B1", "B2", "B1", "B2"),
     timepoint_id = c("T0", "T1", "T0", "T1", "T0", "T1"),
     time_index   = c(0, 1, 0, 1, 0, 1),
-    outcome_value = c(0, 1, 0, 1, 1, 0)
+    outcome_id   = c("ctrl", "case", "ctrl", "case", "case", "ctrl")
   ),
   graph_name = "quick_demo"
 )
@@ -234,6 +234,53 @@ tryCatch(
   error = function(e) e$message
 )
 
+## ----overrides-fixture--------------------------------------------------------
+multi_nodes <- graph_node_set(data.frame(
+  node_id   = c("sample:S1", "subject:P1", "subject:P2"),
+  node_type = c("Sample", "Subject", "Subject"),
+  node_key  = c("S1", "P1", "P2"),
+  label     = c("S1", "P1", "P2"),
+  attrs     = I(list(list(), list(), list())),
+  stringsAsFactors = FALSE
+))
+
+multi_edges <- graph_edge_set(data.frame(
+  edge_id   = c("sample_belongs_to_subject:1", "sample_belongs_to_subject:2"),
+  from      = c("sample:S1", "sample:S1"),
+  to        = c("subject:P1", "subject:P2"),
+  edge_type = c("sample_belongs_to_subject", "sample_belongs_to_subject"),
+  attrs     = I(list(list(), list())),
+  stringsAsFactors = FALSE
+))
+
+multi_graph <- dependency_graph(nodes = multi_nodes, edges = multi_edges)
+
+## ----overrides-default--------------------------------------------------------
+default_report <- validate_graph(multi_graph)
+default_report$valid
+default_report$issues[, c("severity", "code", "message")]
+
+tryCatch(
+  derive_split_constraints(multi_graph, mode = "subject"),
+  error = function(e) e$message
+)
+
+## ----overrides-on-------------------------------------------------------------
+# Validator: pass.
+permissive_report <- validate_graph(
+  multi_graph,
+  validation_overrides = list(allow_multi_subject_samples = TRUE)
+)
+permissive_report$valid
+
+# Constraint derivation: pick the first listed subject and record the
+# ambiguity in metadata$warnings instead of erroring.
+multi_graph$metadata$validation_overrides <-
+  list(allow_multi_subject_samples = TRUE)
+relaxed_constraint <- derive_split_constraints(multi_graph, mode = "subject")
+relaxed_constraint$sample_map[, c("sample_id", "group_id")]
+relaxed_constraint$metadata$warnings
+
 ## ----neighbors-and-paths------------------------------------------------------
 neighbors_s1 <- query_neighbors(graph, node_ids = "sample:S1", direction = "out")
 neighbors_s1
@@ -397,6 +444,19 @@ risk_summary <- summarize_leakage_risks(
 
 risk_summary
 as.data.frame(risk_summary)[, c("source", "severity", "category", "message")]
+
+## ----serialize, eval = requireNamespace("jsonlite", quietly = TRUE)-----------
+spec_path <- tempfile(fileext = ".json")
+write_split_spec(split_spec, spec_path)
+
+# Round-trip it back into R unchanged.
+spec_round_trip <- read_split_spec(spec_path)
+identical(split_spec$sample_data$group_id, spec_round_trip$sample_data$group_id)
+
+unlink(spec_path)
+
+## ----cookbook-pointer, eval = FALSE-------------------------------------------
+# vignette("adapter-cookbook", package = "splitGraph")
 
 ## ----case-study-1-------------------------------------------------------------
 subject_groups <- grouping_vector(subject_constraint)
