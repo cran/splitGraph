@@ -372,6 +372,96 @@ as.data.frame(strict_constraint)[, c("sample_id", "group_id", "constraint_type")
 rule_based_constraint
 as.data.frame(rule_based_constraint)[, c("sample_id", "group_id", "constraint_type", "group_label")]
 
+## ----site-structure-----------------------------------------------------------
+site_meta <- data.frame(
+  sample_id  = c("S1", "S2", "S3", "S4", "S5", "S6"),
+  subject_id = c("P1", "P1", "P2", "P2", "P3", "P3"),
+  site_id    = c("NYC", "NYC", "BOS", "BOS", "NYC", "BOS"),
+  stringsAsFactors = FALSE
+)
+
+site_graph <- graph_from_metadata(site_meta, graph_name = "multi-site")
+
+# Group samples so that no collection site straddles a train/test split.
+site_constraint <- derive_split_constraints(site_graph, mode = "site")
+as.data.frame(site_constraint)[, c("sample_id", "group_id", "group_label")]
+
+## ----site-spec----------------------------------------------------------------
+subject_then_block_by_site <- as_split_spec(
+  derive_split_constraints(site_graph, mode = "subject"),
+  graph = site_graph
+)
+subject_then_block_by_site$block_vars
+head(subject_then_block_by_site$sample_data[, c("sample_id", "group_id", "site_group")])
+
+## ----region-structure---------------------------------------------------------
+region_meta <- data.frame(
+  sample_id = c("S1", "S2", "S3", "S4"),
+  region_id = c("cortex", "cortex", "hippocampus", "hippocampus"),
+  stringsAsFactors = FALSE
+)
+region_graph <- graph_from_metadata(region_meta, graph_name = "regions")
+as.data.frame(derive_split_constraints(region_graph, mode = "region"))[
+  , c("sample_id", "group_id", "group_label")
+]
+
+## ----platform-assay-----------------------------------------------------------
+tech_meta <- data.frame(
+  sample_id   = c("S1", "S2", "S3", "S4"),
+  platform_id = c("illumina", "illumina", "nanopore", "nanopore"),
+  assay_id    = c("rnaseq", "rnaseq", "wgs", "wgs"),
+  stringsAsFactors = FALSE
+)
+tech_graph <- graph_from_metadata(tech_meta, graph_name = "tech")
+
+as.data.frame(derive_split_constraints(tech_graph, mode = "platform"))[
+  , c("sample_id", "group_id", "group_label")
+]
+as.data.frame(derive_split_constraints(tech_graph, mode = "assay"))[
+  , c("sample_id", "group_id", "group_label")
+]
+
+## ----cluster-plot, fig.width = 7, fig.height = 5------------------------------
+mixed_meta <- data.frame(
+  sample_id   = c("S1", "S2", "S3", "S4"),
+  subject_id  = c("P1", "P1", "P2", "P2"),
+  site_id     = c("NYC", "NYC", "BOS", "BOS"),
+  platform_id = c("illumina", "illumina", "nanopore", "nanopore"),
+  stringsAsFactors = FALSE
+)
+plot(graph_from_metadata(mixed_meta, graph_name = "mixed_structure"))
+
+## ----relatedness-demo---------------------------------------------------------
+kin <- data.frame(
+  id1     = c("P1", "P2", "P1"),
+  id2     = c("P2", "P3", "P4"),
+  kinship = c(0.25, 0.20, 0.02),   # P1-P4 is below the 0.1 threshold
+  stringsAsFactors = FALSE
+)
+rel_edges <- relatedness_edges_from_kinship(kin, threshold = 0.1)
+
+rel_meta <- data.frame(
+  sample_id  = paste0("S", 1:4),
+  subject_id = c("P1", "P2", "P3", "P4"),
+  stringsAsFactors = FALSE
+)
+rel_graph <- build_dependency_graph(
+  nodes = list(
+    create_nodes(rel_meta, "Sample", "sample_id"),
+    create_nodes(rel_meta, "Subject", "subject_id")
+  ),
+  edges = list(
+    create_edges(rel_meta, "sample_id", "subject_id",
+                 "Sample", "Subject", "sample_belongs_to_subject"),
+    rel_edges
+  )
+)
+
+grouping_vector(derive_split_constraints(rel_graph, mode = "relatedness"))
+
+## ----modeling-pointer, eval = FALSE-------------------------------------------
+# vignette("modeling-structure", package = "splitGraph")
+
 ## ----precedence-only----------------------------------------------------------
 precedence_meta <- data.frame(
   sample_id = c("S1", "S2", "S3"),
@@ -443,11 +533,14 @@ risk_summary <- summarize_leakage_risks(
 )
 
 risk_summary
-as.data.frame(risk_summary)[, c("source", "severity", "category", "message")]
+as.data.frame(risk_summary)[, c("source", "severity", "category", "severed", "message")]
 
 ## ----serialize, eval = requireNamespace("jsonlite", quietly = TRUE)-----------
 spec_path <- tempfile(fileext = ".json")
 write_split_spec(split_spec, spec_path)
+
+# Validate the file against the shipped JSON Schema.
+validate_split_spec_json(spec_path)$valid
 
 # Round-trip it back into R unchanged.
 spec_round_trip <- read_split_spec(spec_path)
@@ -456,7 +549,8 @@ identical(split_spec$sample_data$group_id, spec_round_trip$sample_data$group_id)
 unlink(spec_path)
 
 ## ----cookbook-pointer, eval = FALSE-------------------------------------------
-# vignette("adapter-cookbook", package = "splitGraph")
+# vignette("adapter-cookbook", package = "splitGraph")       # R adapters
+# vignette("cross-language-handoff", package = "splitGraph") # Python / sklearn
 
 ## ----case-study-1-------------------------------------------------------------
 subject_groups <- grouping_vector(subject_constraint)

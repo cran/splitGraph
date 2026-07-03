@@ -69,6 +69,25 @@ folds <- logo_folds(spec, obs)
 length(folds)
 folds[[1]]
 
+## ----block-vars---------------------------------------------------------------
+spec$block_vars
+head(spec$sample_data[, c("sample_id", spec$group_var, spec$block_vars)])
+
+## ----block-audit--------------------------------------------------------------
+block <- spec$block_vars[[1]]
+block_of <- setNames(spec$sample_data[[block]], spec$sample_data$sample_id)
+
+do.call(rbind, lapply(folds, function(f) {
+  data.frame(
+    held_out_group    = f$group,
+    straddling_batches = paste(
+      intersect(block_of[obs$sample_id[f$train]],
+                block_of[obs$sample_id[f$assess]]),
+      collapse = ", "
+    )
+  )
+}))
+
 ## ----adapter-rsample-group, eval=FALSE----------------------------------------
 # spec_to_group_vfold <- function(spec, observation_data,
 #                                 v = NULL,
@@ -122,12 +141,34 @@ folds[[1]]
 tmp <- tempfile(fileext = ".json")
 write_split_spec(spec, tmp)
 
-# Inspect the first ~30 lines so the on-disk format is visible.
-cat(readLines(tmp, n = 30), sep = "\n")
+# The file opens with its $schema reference and schema_version.
+cat(readLines(tmp, n = 5), sep = "\n")
 
-# And read it back exactly.
+# Validate the file against the shipped JSON Schema, then read it back exactly.
+validate_split_spec_json(tmp)$valid
 spec2 <- read_split_spec(tmp)
 identical(spec$sample_data$group_id, spec2$sample_data$group_id)
 
 unlink(tmp)
+
+## ----xlang-pointer, eval = FALSE----------------------------------------------
+# vignette("cross-language-handoff", package = "splitGraph")
+
+## ----dispatch-----------------------------------------------------------------
+recommend_adapter <- function(spec) {
+  switch(
+    spec$recommended_resampling,
+    grouped_cv          = "group_vfold_cv (group = group_id)",
+    blocked_cv          = "group_vfold_cv (group = group_id)",
+    custom_grouped_cv   = "group_vfold_cv (group = group_id)",
+    leave_one_group_out = "leave-one-group-out over group_id",
+    ordered_split       = "rolling_origin (order by order_rank)",
+    "group_vfold_cv (default)"
+  )
+}
+
+# The subject spec recommends grouped CV; a time-mode spec recommends ordering.
+recommend_adapter(spec)
+time_spec <- as_split_spec(derive_split_constraints(g, mode = "time"), graph = g)
+recommend_adapter(time_spec)
 

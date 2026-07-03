@@ -10,6 +10,10 @@
     primary_group = rep(NA_character_, n),
     batch_group = rep(NA_character_, n),
     study_group = rep(NA_character_, n),
+    site_group = rep(NA_character_, n),
+    region_group = rep(NA_character_, n),
+    platform_group = rep(NA_character_, n),
+    assay_group = rep(NA_character_, n),
     timepoint_id = rep(NA_character_, n),
     time_index = rep(NA_real_, n),
     order_rank = rep(NA_integer_, n),
@@ -56,6 +60,12 @@
   if (identical(mode, "subject")) return("grouped_cv")
   if (identical(mode, "batch")) return("blocked_cv")
   if (identical(mode, "study")) return("leave_one_group_out")
+  if (identical(mode, "site")) return("leave_one_group_out")
+  if (identical(mode, "region")) return("grouped_cv")
+  if (identical(mode, "platform")) return("blocked_cv")
+  if (identical(mode, "assay")) return("grouped_cv")
+  if (identical(mode, "relatedness")) return("grouped_cv")
+  if (identical(mode, "spatial")) return("grouped_cv")
   if (identical(mode, "time")) return("ordered_split")
   if (identical(mode, "composite") && identical(strategy, "strict")) return("custom_grouped_cv")
   if (identical(mode, "composite") && identical(strategy, "rule_based")) return("grouped_cv")
@@ -73,6 +83,7 @@
 
   batch_assignments <- .depgraph_direct_assignment(graph, "batch", samples = sample_ids)
   study_assignments <- .depgraph_direct_assignment(graph, "study", samples = sample_ids)
+  site_assignments <- .depgraph_direct_assignment(graph, "site", samples = sample_ids)
   time_constraint <- .derive_time_constraints(graph, samples = sample_ids)$sample_map
   time_constraint <- time_constraint[match(sample_ids, time_constraint$sample_node_id), , drop = FALSE]
 
@@ -81,6 +92,21 @@
 
   missing_study <- is.na(sample_data$study_group) | !nzchar(sample_data$study_group)
   sample_data$study_group[missing_study] <- .split_spec_match_assignment_key(study_assignments, sample_ids)[missing_study]
+
+  missing_site <- is.na(sample_data$site_group) | !nzchar(sample_data$site_group)
+  sample_data$site_group[missing_site] <- .split_spec_match_assignment_key(site_assignments, sample_ids)[missing_site]
+
+  region_assignments <- .depgraph_direct_assignment(graph, "region", samples = sample_ids)
+  missing_region <- is.na(sample_data$region_group) | !nzchar(sample_data$region_group)
+  sample_data$region_group[missing_region] <- .split_spec_match_assignment_key(region_assignments, sample_ids)[missing_region]
+
+  platform_assignments <- .depgraph_direct_assignment(graph, "platform", samples = sample_ids)
+  missing_platform <- is.na(sample_data$platform_group) | !nzchar(sample_data$platform_group)
+  sample_data$platform_group[missing_platform] <- .split_spec_match_assignment_key(platform_assignments, sample_ids)[missing_platform]
+
+  assay_assignments <- .depgraph_direct_assignment(graph, "assay", samples = sample_ids)
+  missing_assay <- is.na(sample_data$assay_group) | !nzchar(sample_data$assay_group)
+  sample_data$assay_group[missing_assay] <- .split_spec_match_assignment_key(assay_assignments, sample_ids)[missing_assay]
 
   missing_timepoint <- is.na(sample_data$timepoint_id) | !nzchar(sample_data$timepoint_id)
   sample_data$timepoint_id[missing_timepoint] <- time_constraint$timepoint_id[missing_timepoint]
@@ -192,6 +218,18 @@ as_split_spec <- function(constraint, graph = NULL) {
   if (identical(mode, "study")) {
     sample_data$study_group <- as.character(sample_map$group_label)
   }
+  if (identical(mode, "site")) {
+    sample_data$site_group <- as.character(sample_map$group_label)
+  }
+  if (identical(mode, "region")) {
+    sample_data$region_group <- as.character(sample_map$group_label)
+  }
+  if (identical(mode, "platform")) {
+    sample_data$platform_group <- as.character(sample_map$group_label)
+  }
+  if (identical(mode, "assay")) {
+    sample_data$assay_group <- as.character(sample_map$group_label)
+  }
 
   if ("timepoint_id" %in% names(sample_map)) {
     sample_data$timepoint_id <- as.character(sample_map$timepoint_id)
@@ -216,6 +254,18 @@ as_split_spec <- function(constraint, graph = NULL) {
   if (!all(is.na(sample_data$study_group))) {
     block_vars <- c(block_vars, "study_group")
   }
+  if (!all(is.na(sample_data$site_group))) {
+    block_vars <- c(block_vars, "site_group")
+  }
+  if (!all(is.na(sample_data$region_group))) {
+    block_vars <- c(block_vars, "region_group")
+  }
+  if (!all(is.na(sample_data$platform_group))) {
+    block_vars <- c(block_vars, "platform_group")
+  }
+  if (!all(is.na(sample_data$assay_group))) {
+    block_vars <- c(block_vars, "assay_group")
+  }
 
   time_var <- if (!all(is.na(sample_data$order_rank))) "order_rank" else NULL
   ordering_required <- isTRUE(constraint$recommended_downstream_args$ordering_required)
@@ -235,6 +285,8 @@ as_split_spec <- function(constraint, graph = NULL) {
       source_mode = mode,
       source_strategy = strategy,
       relations_used = constraint$metadata$relations_used %||% character(),
+      splitgraph_version = .depgraph_package_version(),
+      derived_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%OS6%z"),
       n_samples = nrow(sample_data),
       n_groups = length(unique(sample_data$group_id)),
       warnings = constraint$metadata$warnings %||% character(),
@@ -356,7 +408,44 @@ validate_split_spec <- function(x) {
   )
 }
 
-.leakage_summary_from_validation <- function(validation) {
+.depgraph_constraint_via_modes <- function(constraint) {
+  # Constraints store composite `via` as capitalized node types
+  # (e.g., "Subject"); convert to lower-case mode names for severance lookup.
+  via <- constraint$metadata$via %||% character()
+  if (length(via) == 0L) return(character())
+  reverse <- stats::setNames(
+    names(.depgraph_constraint_mode_map),
+    unname(.depgraph_constraint_mode_map)
+  )
+  matched <- reverse[as.character(via)]
+  unname(matched[!is.na(matched)])
+}
+
+# Map a validation issue code to whether the chosen constraint mode (+ optional
+# composite `via`) severs that leakage path. Returns TRUE/FALSE for codes the
+# package can reason about, NA for codes whose severance is not a function of
+# split-mode (structural errors, etc.) or when no constraint is supplied.
+.leakage_severed_by_constraint <- function(code, mode = NULL, via_modes = character()) {
+  if (is.null(mode) || !nzchar(mode)) return(NA)
+  via_modes <- as.character(via_modes %||% character())
+  composite_covers <- function(needed) {
+    identical(mode, "composite") && needed %in% via_modes
+  }
+  switch(
+    as.character(code),
+    repeated_subject_samples     = identical(mode, "subject") || composite_covers("subject"),
+    subject_cross_study_overlap  = mode %in% c("subject", "study") ||
+                                     composite_covers("subject") ||
+                                     composite_covers("study"),
+    heavy_batch_reuse            = identical(mode, "batch") || composite_covers("batch"),
+    missing_time_ordering        = identical(mode, "time") || composite_covers("time"),
+    per_dataset_featureset       = FALSE,
+    shared_featureset_provenance = FALSE,
+    NA
+  )
+}
+
+.leakage_summary_from_validation <- function(validation, constraint = NULL) {
   if (nrow(validation$issues) == 0L) {
     return(data.frame(
       severity = character(),
@@ -364,9 +453,21 @@ validate_split_spec <- function(x) {
       message = character(),
       source = character(),
       n_affected = integer(),
+      severed = logical(),
       stringsAsFactors = FALSE
     ))
   }
+
+  mode <- if (!is.null(constraint)) as.character(constraint$metadata$mode %||% NA) else NA_character_
+  via_modes <- if (!is.null(constraint)) .depgraph_constraint_via_modes(constraint) else character()
+
+  severed <- vapply(
+    validation$issues$code,
+    function(code) {
+      .leakage_severed_by_constraint(code, mode = if (is.na(mode)) NULL else mode, via_modes = via_modes)
+    },
+    logical(1)
+  )
 
   data.frame(
     severity = validation$issues$severity,
@@ -374,20 +475,23 @@ validate_split_spec <- function(x) {
     message = validation$issues$message,
     source = "validation",
     n_affected = vapply(validation$issues$node_ids, length, integer(1)),
+    severed = severed,
     stringsAsFactors = FALSE
   )
 }
 
 .leakage_summary_from_constraint <- function(constraint) {
+  empty <- data.frame(
+    severity = character(),
+    category = character(),
+    message = character(),
+    source = character(),
+    n_affected = integer(),
+    severed = logical(),
+    stringsAsFactors = FALSE
+  )
   if (is.null(constraint)) {
-    return(data.frame(
-      severity = character(),
-      category = character(),
-      message = character(),
-      source = character(),
-      n_affected = integer(),
-      stringsAsFactors = FALSE
-    ))
+    return(empty)
   }
 
   diagnostics <- list()
@@ -400,6 +504,7 @@ validate_split_spec <- function(x) {
         message = warning_msg,
         source = "constraint",
         n_affected = nrow(constraint$sample_map),
+        severed = NA,
         stringsAsFactors = FALSE
       )
     }
@@ -414,20 +519,14 @@ validate_split_spec <- function(x) {
         message = "The derived split constraint is dominated by singleton groups.",
         source = "constraint",
         n_affected = sum(group_sizes == 1L),
+        severed = NA,
         stringsAsFactors = FALSE
       )
     }
   }
 
   if (length(diagnostics) == 0L) {
-    return(data.frame(
-      severity = character(),
-      category = character(),
-      message = character(),
-      source = character(),
-      n_affected = integer(),
-      stringsAsFactors = FALSE
-    ))
+    return(empty)
   }
 
   out <- do.call(rbind, diagnostics)
@@ -436,18 +535,17 @@ validate_split_spec <- function(x) {
 }
 
 .leakage_summary_from_split_spec <- function(split_spec) {
+  empty <- data.frame(
+    severity = character(),
+    category = character(),
+    message = character(),
+    source = character(),
+    n_affected = integer(),
+    severed = logical(),
+    stringsAsFactors = FALSE
+  )
   if (is.null(split_spec)) {
-    return(list(
-      diagnostics = data.frame(
-        severity = character(),
-        category = character(),
-        message = character(),
-        source = character(),
-        n_affected = integer(),
-        stringsAsFactors = FALSE
-      ),
-      summary = list()
-    ))
+    return(list(diagnostics = empty, summary = list()))
   }
 
   validation <- validate_split_spec(split_spec)
@@ -459,6 +557,7 @@ validate_split_spec <- function(x) {
       message = "Split spec passed preflight validation.",
       source = "split_spec",
       n_affected = nrow(split_spec$sample_data),
+      severed = NA,
       stringsAsFactors = FALSE
     )
   } else {
@@ -468,6 +567,7 @@ validate_split_spec <- function(x) {
       message = validation$issues$message,
       source = "split_spec",
       n_affected = validation$issues$n_affected,
+      severed = NA,
       stringsAsFactors = FALSE
     )
   }
@@ -483,6 +583,7 @@ validate_split_spec <- function(x) {
       ),
       source = "split_spec",
       n_affected = complete_ordering,
+      severed = NA,
       stringsAsFactors = FALSE
     )
   }
@@ -503,6 +604,7 @@ validate_split_spec <- function(x) {
         ),
         source = "split_spec",
         n_affected = available,
+        severed = NA,
         stringsAsFactors = FALSE
       )
     }
@@ -516,6 +618,7 @@ validate_split_spec <- function(x) {
       message = "Split spec grouping is dominated by singleton groups.",
       source = "split_spec",
       n_affected = sum(group_sizes == 1L),
+      severed = NA,
       stringsAsFactors = FALSE
     )
   }
@@ -550,7 +653,7 @@ summarize_leakage_risks <- function(graph, constraint = NULL, split_spec = NULL,
   }
 
   validation <- validation %||% validate_graph(graph)
-  validation_diag <- .leakage_summary_from_validation(validation)
+  validation_diag <- .leakage_summary_from_validation(validation, constraint = constraint)
   constraint_diag <- .leakage_summary_from_constraint(constraint)
   split_spec_info <- .leakage_summary_from_split_spec(split_spec)
 

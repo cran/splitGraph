@@ -139,6 +139,52 @@ test_that("validate_split_spec is deterministic across repeated runs", {
   expect_identical(validation_a$issues$issue_id, validation_b$issues$issue_id)
 })
 
+test_that("summarize_leakage_risks marks validation risks not severed by the chosen constraint", {
+  # Regression test for C2: summarize_leakage_risks reused validate_graph()
+  # but never asked whether the CHOSEN constraint mode actually severs each
+  # reported leakage path. A user picking `mode = "subject"` on a graph with
+  # heavy batch reuse could ship a spec whose splits leak batch effects, and
+  # the summary would not flag the mismatch.
+  meta <- data.frame(
+    sample_id  = paste0("S", 1:6),
+    subject_id = paste0("P", 1:6),                          # each subject distinct
+    batch_id   = c("B1", "B1", "B1", "B2", "B2", "B3"),     # B1 holds 3 of 6
+    stringsAsFactors = FALSE
+  )
+  graph <- graph_from_metadata(meta, graph_name = "heavy_batch_demo")
+
+  subject_c <- derive_split_constraints(graph, mode = "subject")
+  summary_subject <- summarize_leakage_risks(graph, constraint = subject_c)
+
+  expect_true("severed" %in% names(summary_subject$diagnostics),
+              info = "Diagnostics must carry a `severed` column when a constraint is provided.")
+  heavy_row_subject <- summary_subject$diagnostics[
+    summary_subject$diagnostics$category == "heavy_batch_reuse", , drop = FALSE
+  ]
+  expect_equal(nrow(heavy_row_subject), 1L,
+               info = "heavy_batch_reuse must appear when one batch holds >= ceiling(n*0.5) samples.")
+  expect_false(isTRUE(heavy_row_subject$severed[[1L]]),
+               info = "mode = 'subject' does not block batch leakage; row must be marked not severed.")
+
+  # Same graph, but mode = 'batch' should sever the same risk.
+  batch_c <- derive_split_constraints(graph, mode = "batch")
+  summary_batch <- summarize_leakage_risks(graph, constraint = batch_c)
+  heavy_row_batch <- summary_batch$diagnostics[
+    summary_batch$diagnostics$category == "heavy_batch_reuse", , drop = FALSE
+  ]
+  expect_true(isTRUE(heavy_row_batch$severed[[1L]]),
+              info = "mode = 'batch' groups samples by batch; heavy_batch_reuse must be marked severed.")
+
+  # Without a constraint, `severed` should be NA (no claim about severance).
+  summary_no_c <- summarize_leakage_risks(graph)
+  expect_true("severed" %in% names(summary_no_c$diagnostics))
+  heavy_row_nc <- summary_no_c$diagnostics[
+    summary_no_c$diagnostics$category == "heavy_batch_reuse", , drop = FALSE
+  ]
+  expect_true(is.na(heavy_row_nc$severed[[1L]]),
+              info = "Without a constraint, severance is not knowable; column must be NA.")
+})
+
 test_that("summarize_leakage_risks combines graph, constraint, and split-spec diagnostics", {
   graph <- make_split_spec_graph("index")
   constraint <- derive_split_constraints(graph, mode = "composite", strategy = "strict", via = c("Subject", "Batch"))
@@ -156,4 +202,63 @@ test_that("summarize_leakage_risks combines graph, constraint, and split-spec di
   expect_true("block_vars" %in% names(summary_obj$split_spec_summary))
   expect_true("ordering_required" %in% names(summary_obj$split_spec_summary))
   expect_true(length(capture.output(print(summary_obj))) > 0L)
+})
+
+# ---- leakage-summary edge branches ------------------------------------------
+
+test_that("summarize_leakage_risks reports no risks for a structurally clean graph", {
+  clean <- data.frame(
+    sample_id  = c("S1", "S2"),
+    subject_id = c("P1", "P2"),
+    study_id   = c("ST1", "ST2"),
+    stringsAsFactors = FALSE
+  )
+  g <- graph_from_metadata(clean)
+  expect_true(validate_graph(g)$valid)
+
+  # No constraint and no split_spec: every summary source is empty.
+  rs <- summarize_leakage_risks(g)
+  expect_s3_class(rs, "leakage_risk_summary")
+  expect_equal(nrow(as.data.frame(rs)), 0L)
+  expect_match(rs$overview, "No structural leakage risks")
+})
+
+test_that("summarize_leakage_risks surfaces constraint warnings as diagnostics", {
+  meta <- data.frame(
+    sample_id  = c("S1", "S2", "S3"),
+    subject_id = c("P1", "P2", "P3"),
+    site_id    = c("NYC", "NYC", NA),   # S3 has no site -> constraint warning
+    stringsAsFactors = FALSE
+  )
+  g <- graph_from_metadata(meta)
+  constraint <- derive_split_constraints(g, mode = "site")
+  expect_true(length(constraint$metadata$warnings) > 0L)
+
+  df <- as.data.frame(summarize_leakage_risks(g, constraint = constraint))
+  warn_rows <- df[df$category == "constraint_warning", , drop = FALSE]
+  expect_true(nrow(warn_rows) >= 1L)
+  expect_true(all(warn_rows$source == "constraint"))
+  expect_true(all(is.na(warn_rows$severed)))
+})
+
+test_that("summarize_leakage_risks reports a failing preflight and phantom block vars", {
+  meta <- data.frame(
+    sample_id  = c("S1", "S2", "S3", "S4"),
+    subject_id = c("P1", "P1", "P2", "P2"),
+    batch_id   = c("B1", "B2", "B1", "B2"),
+    stringsAsFactors = FALSE
+  )
+  g <- graph_from_metadata(meta)
+  spec <- as_split_spec(derive_split_constraints(g, mode = "subject"), graph = g)
+
+  # Blank a declared block variable so preflight validation flags it, and add a
+  # phantom block variable that is absent from sample_data.
+  spec$sample_data$batch_group <- NA_character_
+  spec$block_vars <- c(spec$block_vars, "phantom_group")
+
+  df <- as.data.frame(summarize_leakage_risks(g, split_spec = spec))
+  # The preflight issue is carried into the split_spec diagnostics.
+  expect_true(any(df$source == "split_spec" & df$severity != "advisory"))
+  # The phantom block variable is reported as available for 0 samples.
+  expect_true(any(grepl("phantom_group.*for 0 of", df$message)))
 })

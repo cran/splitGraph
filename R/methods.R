@@ -82,8 +82,11 @@ summary.dependency_graph <- function(object, ...) {
   Batch      = 1L,
   Study      = 1L,
   Timepoint  = 1L,
+  Site       = 1L,
+  Region     = 1L,
   Assay      = 2L,
   FeatureSet = 2L,
+  Platform   = 2L,
   Outcome    = 3L
 )
 
@@ -97,6 +100,9 @@ summary.dependency_graph <- function(object, ...) {
     Assay      = "#72B7B2",
     FeatureSet = "#EECA3B",
     Outcome    = "#9D755D",
+    Site       = "#FF9DA6",
+    Region     = "#8CD17D",
+    Platform   = "#D37295",
     `_other_`  = "#B0B0B0"
   )
 }
@@ -287,28 +293,6 @@ summary.split_constraint <- function(object, ...) {
 #' @export
 as.data.frame.split_constraint <- function(x, row.names = NULL, optional = FALSE, ...) {
   x$sample_map
-}
-
-#' @export
-print.leakage_constraint <- function(x, ...) {
-  cat("<leakage_constraint>", x$issue_type, "(", x$severity, ")\n")
-  cat("  Affected samples:", length(x$affected_samples), "\n")
-  invisible(x)
-}
-
-#' @export
-summary.leakage_constraint <- function(object, ...) {
-  list(
-    issue_type = object$issue_type,
-    severity = object$severity,
-    n_affected_samples = length(object$affected_samples),
-    recommendation = object$recommendation
-  )
-}
-
-#' @export
-as.data.frame.leakage_constraint <- function(x, row.names = NULL, optional = FALSE, ...) {
-  x$evidence
 }
 
 #' @export

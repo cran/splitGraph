@@ -7,7 +7,10 @@
   list(type = "Study",      id_col = "study_id",      relation = "sample_from_study"),
   list(type = "Timepoint",  id_col = "timepoint_id",  relation = "sample_collected_at_timepoint"),
   list(type = "Assay",      id_col = "assay_id",      relation = "sample_measured_by_assay"),
-  list(type = "FeatureSet", id_col = "featureset_id", relation = "sample_uses_featureset")
+  list(type = "FeatureSet", id_col = "featureset_id", relation = "sample_uses_featureset"),
+  list(type = "Site",       id_col = "site_id",       relation = "sample_collected_at_site"),
+  list(type = "Region",     id_col = "region_id",     relation = "sample_located_in_region"),
+  list(type = "Platform",   id_col = "platform_id",   relation = "sample_run_on_platform")
 )
 
 #' Build a Dependency Graph Directly from a Metadata Table

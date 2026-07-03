@@ -1,5 +1,10 @@
 # splitGraph: Dataset Dependency Graphs for Leakage-Aware Evaluation
 
+<!-- badges: start -->
+[![R-CMD-check](https://github.com/selcukorkmaz/splitGraph/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/selcukorkmaz/splitGraph/actions/workflows/R-CMD-check.yaml)
+[![Codecov test coverage](https://codecov.io/gh/selcukorkmaz/splitGraph/branch/main/graph/badge.svg)](https://app.codecov.io/gh/selcukorkmaz/splitGraph?branch=main)
+<!-- badges: end -->
+
 `splitGraph` is an R package for representing biomedical dataset structure as a
 typed dependency graph so that leakage-relevant relationships can be made
 explicit, validated, queried, and converted into deterministic split
@@ -48,8 +53,11 @@ correct while still violating the intended scientific separation.
   `validation_overrides` mechanism for explicit exceptions
 - typed query and traversal helpers (with a safety cap on `query_paths()`)
 - projected sample-dependency detection
-- split-constraint derivation for subject, batch, study, time, and composite
-  modes
+- split-constraint derivation for subject, batch, study, time, site, region,
+  platform, assay, relatedness, spatial, and composite modes (the pairwise
+  `relatedness` / `spatial` modes group by transitive closure over thresholded
+  edges built with `relatedness_edges_from_kinship()` /
+  `spatial_edges_from_coords()`)
 - translation of constraints into a stable, tool-agnostic `split_spec`
 - split-spec preflight validation and leakage summary helpers
 - JSON serialization for `dependency_graph` and `split_spec` so handoff
@@ -67,6 +75,29 @@ correct while still violating the intended scientific separation.
 
 The package is intentionally narrow: dataset dependency structure for
 leakage-aware evaluation design.
+
+## Scope & Relationship to bioLeak
+
+splitGraph sits one layer *above* execution. It represents dependency
+structure, validates it, and emits a neutral `split_spec` — and stops there.
+It has **zero** resampling or modeling dependencies and no runtime dependency
+on any downstream package.
+
+| splitGraph owns | Downstream consumer owns |
+|---|---|
+| Typed dependency graph + validation | Generating resamples / folds |
+| Deriving split **constraints** | Stratified splitting, purge/embargo execution |
+| Emitting + validating the `split_spec` IR | Model fitting, tuning, performance auditing |
+| Carrying stratum / ordering / blocking annotations | Statistical leakage evidence (ΔLSI, permutation gaps) |
+
+The reference consumer is [**bioLeak**](https://github.com/selcukorkmaz/bioLeak):
+`bioLeak::as_leaksplits(spec, data, outcome)` turns a splitGraph `split_spec`
+into an executable, leakage-audited split plan. Because `split_spec` is a
+documented, tool-agnostic contract (with a formal JSON Schema and a Python
+reference consumer), other tools — an `rsample` adapter, the shipped Python
+reader driving scikit-learn — can consume it equally. A contract test
+(`Suggests: bioLeak`, skipped if absent) pins this seam so neither side breaks
+it silently.
 
 ## Installation
 
@@ -118,7 +149,10 @@ spec2 <- read_split_spec(path)
 For full control over node labels, attribute columns, and the feature-set
 provenance edges, use `create_nodes()` / `create_edges()` /
 `build_dependency_graph()` directly. `graph_from_metadata()` auto-builds
-the six sample-rooted canonical edges, `timepoint_precedes`, and the
+the nine sample-rooted canonical edges (including `sample_collected_at_site`
+from a `site_id` column, `sample_located_in_region` from a `region_id`
+column, and `sample_run_on_platform` from a `platform_id` column),
+`timepoint_precedes`, and the
 appropriate outcome edge (`sample_has_outcome` by default, or
 `subject_has_outcome` when `outcome_scope = "subject"`). The
 `featureset_generated_from_study` and `featureset_generated_from_batch`
@@ -157,12 +191,23 @@ adapters), see the **Adapter cookbook** vignette:
 vignette("adapter-cookbook", package = "splitGraph")
 ```
 
+`split_spec` is a language-neutral interchange format. A pure-Python reference
+consumer ships in `inst/python` (`splitspec`) that reads the JSON and drives
+scikit-learn `GroupKFold` / `StratifiedGroupKFold` / `TimeSeriesSplit`; a
+conformance check asserts the Python grouping matches R's `grouping_vector()`.
+The **cross-language handoff** vignette walks the full R → JSON → Python →
+scikit-learn path:
+
+```r
+vignette("cross-language-handoff", package = "splitGraph")
+```
+
 ## Core Concepts
 
 ### Node types
 
 - `Sample`, `Subject`, `Batch`, `Study`, `Timepoint`, `Assay`, `FeatureSet`,
-  `Outcome`
+  `Outcome`, `Site`, `Region`, `Platform`
 
 ### Canonical edge types
 
@@ -174,6 +219,12 @@ vignette("adapter-cookbook", package = "splitGraph")
 - `sample_uses_featureset`
 - `sample_has_outcome`
 - `subject_has_outcome`
+- `sample_collected_at_site`
+- `sample_located_in_region`
+- `sample_run_on_platform`
+- `assay_uses_platform`
+- `subject_related_to`
+- `sample_adjacent_to`
 - `timepoint_precedes`
 - `featureset_generated_from_study`
 - `featureset_generated_from_batch`
@@ -212,6 +263,10 @@ subject_constraint <- derive_split_constraints(g, mode = "subject")
 batch_constraint   <- derive_split_constraints(g, mode = "batch")
 study_constraint   <- derive_split_constraints(g, mode = "study")
 time_constraint    <- derive_split_constraints(g, mode = "time")
+site_constraint    <- derive_split_constraints(g, mode = "site")
+region_constraint  <- derive_split_constraints(g, mode = "region")
+platform_constraint <- derive_split_constraints(g, mode = "platform")
+assay_constraint   <- derive_split_constraints(g, mode = "assay")
 
 strict_composite <- derive_split_constraints(
   g, mode = "composite", strategy = "strict",
@@ -222,6 +277,23 @@ rule_based_composite <- derive_split_constraints(
   g, mode = "composite", strategy = "rule_based",
   priority = c("batch", "study", "subject", "time")
 )
+```
+
+Pairwise (thresholded) relations are built from a continuous similarity signal
+and then grouped by transitive closure over the surviving edges:
+
+```r
+# Genetic relatedness: keep subject pairs with kinship >= 0.1.
+kin <- data.frame(id1 = "P1", id2 = "P2", kinship = 0.25)
+rel_edges <- relatedness_edges_from_kinship(kin, threshold = 0.1)
+
+# Spatial proximity: connect samples within a radius.
+coords <- data.frame(sample_id = c("S1", "S2", "S3"), x = c(0, 1, 9), y = c(0, 1, 9))
+adj_edges <- spatial_edges_from_coords(coords, radius = 2)
+
+# Combine with the base node/edge sets in build_dependency_graph(), then:
+relatedness_constraint <- derive_split_constraints(g, mode = "relatedness")
+spatial_constraint     <- derive_split_constraints(g, mode = "spatial")
 ```
 
 ## Serialization (JSON)
@@ -241,11 +313,16 @@ g2    <- read_dependency_graph(graph_path)
 spec2 <- read_split_spec(spec_path)
 ```
 
-The JSON schema is documented under `?write_dependency_graph` and
-`?write_split_spec`. Each file carries a `schema_version` field; reading a
-file written under a different schema version emits a warning but still
-loads. `NA` values in `sample_data` round-trip as JSON `null`. The
-`jsonlite` package (a `Suggests` dep) must be installed.
+Both formats have a formal JSON Schema (Draft 2020-12) shipped in
+`inst/schema/`, and every written file references it via a `$schema` key.
+Validate a handoff file against the contract with `validate_graph_json()` /
+`validate_split_spec_json()`. Each file also carries a `schema_version`; the
+**major** version is the compatibility boundary, so files sharing the
+installed major load silently while a differing major warns.
+`migrate_dependency_graph_json()` / `migrate_split_spec_json()` upgrade an
+older file to the current version in place. `NA` values in `sample_data`
+round-trip as JSON `null`. The `jsonlite` package (a `Suggests` dep) must be
+installed.
 
 ## Plot Method
 

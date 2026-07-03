@@ -38,14 +38,40 @@
 }
 
 .depgraph_iso_to_posix <- function(x) {
-  if (is.null(x) || identical(x, NA_character_) || (length(x) == 1L && is.na(x))) {
-    return(Sys.time())
+  na_posix <- .POSIXct(NA_real_, tz = "UTC")
+  if (is.null(x) || length(x) == 0L) {
+    return(na_posix)
   }
-  parsed <- suppressWarnings(as.POSIXct(x, format = "%Y-%m-%dT%H:%M:%OS%z"))
+  if (length(x) == 1L && is.na(x)) {
+    return(na_posix)
+  }
+  try_parse <- function(call_expr) {
+    tryCatch(
+      suppressWarnings(call_expr),
+      error = function(e) na_posix
+    )
+  }
+  parsed <- try_parse(as.POSIXct(x, format = "%Y-%m-%dT%H:%M:%OS%z"))
   if (length(parsed) == 0L || is.na(parsed)) {
-    parsed <- suppressWarnings(as.POSIXct(x))
+    parsed <- try_parse(as.POSIXct(x))
   }
-  if (is.na(parsed)) Sys.time() else parsed
+  if (length(parsed) == 0L || is.na(parsed)) na_posix else parsed
+}
+
+# Public `$id` of the shipped JSON Schema for an object type, referenced from
+# written JSON via the `$schema` key so external consumers can locate the
+# formal contract. Mirrors the file names under `inst/schema/`.
+.depgraph_schema_url <- function(object_type) {
+  paste0(
+    "https://raw.githubusercontent.com/selcukorkmaz/splitGraph/main/inst/schema/",
+    object_type, ".schema.json"
+  )
+}
+
+# Major-version component of a "X.Y.Z" schema string; NA if unparseable.
+.depgraph_schema_major <- function(version) {
+  major <- suppressWarnings(as.integer(sub("\\..*$", "", as.character(version)[1L])))
+  major
 }
 
 .depgraph_check_schema_version <- function(observed, what) {
@@ -57,14 +83,32 @@
     )
     return(invisible())
   }
-  if (!identical(as.character(observed), .depgraph_schema_version)) {
-    warning(
-      "Reading ", what, ": JSON schema_version `", observed,
-      "` does not match installed splitGraph schema_version `",
-      .depgraph_schema_version, "`. Loading anyway.",
-      call. = FALSE
-    )
+
+  observed <- as.character(observed)
+  if (identical(observed, .depgraph_schema_version)) {
+    return(invisible())
   }
+
+  observed_major <- .depgraph_schema_major(observed)
+  installed_major <- .depgraph_schema_major(.depgraph_schema_version)
+
+  # Same MAJOR is read-compatible: additive-only differences, load silently.
+  if (!is.na(observed_major) && identical(observed_major, installed_major)) {
+    return(invisible())
+  }
+
+  migrator <- if (identical(what, "split_spec")) {
+    "migrate_split_spec_json()"
+  } else {
+    "migrate_dependency_graph_json()"
+  }
+  warning(
+    "Reading ", what, ": JSON schema_version `", observed,
+    "` differs in major version from installed splitGraph schema_version `",
+    .depgraph_schema_version, "`. Loading anyway; consider `", migrator,
+    "` to upgrade the file.",
+    call. = FALSE
+  )
   invisible()
 }
 
@@ -156,13 +200,14 @@
 #' @section JSON format:
 #' \preformatted{
 #' {
+#'   "$schema": "https://.../inst/schema/dependency_graph.schema.json",
 #'   "splitGraph_object": "dependency_graph",
-#'   "schema_version": "0.1.0",
+#'   "schema_version": "0.2.0",
 #'   "metadata": {
 #'     "graph_name": "...",
 #'     "dataset_name": "...",
 #'     "created_at": "2026-04-29T10:11:12.000000+0000",
-#'     "schema_version": "0.1.0",
+#'     "schema_version": "0.2.0",
 #'     "validation_overrides": { ... }
 #'   },
 #'   "nodes": [
@@ -178,8 +223,12 @@
 #'   ]
 #' }
 #' }
-#' Reading a file whose \code{schema_version} does not match the installed
-#' package emits a warning but still loads.
+#' Reading a file whose \code{schema_version} shares the installed major
+#' version loads silently (additive-only differences); a differing major
+#' version loads with a warning suggesting \code{migrate_dependency_graph_json()}.
+#' The written JSON also carries a \code{$schema} reference to the formal JSON
+#' Schema shipped in \code{inst/schema/}; validate a file against it with
+#' \code{validate_graph_json()}.
 #'
 #' @param graph A \code{dependency_graph} produced by
 #'   \code{build_dependency_graph()} or \code{graph_from_metadata()}.
@@ -220,6 +269,7 @@ write_dependency_graph <- function(graph, path, pretty = TRUE) {
   )
 
   payload <- list(
+    `$schema`         = .depgraph_schema_url("dependency_graph"),
     splitGraph_object = "dependency_graph",
     schema_version    = .depgraph_schema_version,
     metadata          = .depgraph_metadata_to_json(graph$metadata),
@@ -314,6 +364,10 @@ read_dependency_graph <- function(path) {
     primary_group  = row$primary_group,
     batch_group    = row$batch_group,
     study_group    = row$study_group,
+    site_group     = row$site_group,
+    region_group   = row$region_group,
+    platform_group = row$platform_group,
+    assay_group    = row$assay_group,
     timepoint_id   = row$timepoint_id,
     time_index     = row$time_index,
     order_rank     = row$order_rank
@@ -355,8 +409,9 @@ read_dependency_graph <- function(path) {
 #' @section JSON format:
 #' \preformatted{
 #' {
+#'   "$schema": "https://.../inst/schema/split_spec.schema.json",
 #'   "splitGraph_object": "split_spec",
-#'   "schema_version": "0.1.0",
+#'   "schema_version": "0.2.0",
 #'   "group_var": "group_id",
 #'   "block_vars": ["batch_group", "study_group"],
 #'   "time_var": "order_rank",
@@ -406,6 +461,7 @@ write_split_spec <- function(spec, path, pretty = TRUE) {
   )
 
   payload <- list(
+    `$schema`               = .depgraph_schema_url("split_spec"),
     splitGraph_object       = "split_spec",
     schema_version          = .depgraph_schema_version,
     group_var               = spec$group_var,
@@ -464,6 +520,10 @@ read_split_spec <- function(path) {
       primary_group  = character(),
       batch_group    = character(),
       study_group    = character(),
+      site_group     = character(),
+      region_group   = character(),
+      platform_group = character(),
+      assay_group    = character(),
       timepoint_id   = character(),
       time_index     = numeric(),
       order_rank     = integer(),
@@ -496,6 +556,10 @@ read_split_spec <- function(path) {
       primary_group  = .depgraph_chr(sample_rows, "primary_group"),
       batch_group    = .depgraph_chr(sample_rows, "batch_group"),
       study_group    = .depgraph_chr(sample_rows, "study_group"),
+      site_group     = .depgraph_chr(sample_rows, "site_group"),
+      region_group   = .depgraph_chr(sample_rows, "region_group"),
+      platform_group = .depgraph_chr(sample_rows, "platform_group"),
+      assay_group    = .depgraph_chr(sample_rows, "assay_group"),
       timepoint_id   = .depgraph_chr(sample_rows, "timepoint_id"),
       time_index     = .depgraph_num(sample_rows, "time_index"),
       order_rank     = .depgraph_int(sample_rows, "order_rank"),

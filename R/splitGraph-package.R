@@ -4,12 +4,29 @@
 #'
 #' The \pkg{splitGraph} package provides typed graph objects for representing
 #' dataset structure, sample provenance, and leakage-relevant dependencies in
-#' biomedical evaluation workflows.
+#' biomedical evaluation workflows. It makes dataset dependency structure
+#' explicit enough to validate, query, and convert into a stable, tool-agnostic
+#' split specification (\code{split_spec}) for leakage-aware evaluation.
 #'
-#' Version 1 is focused on dataset dependency graphs rather than biological
-#' interaction networks. It focuses on making dataset dependency structure
-#' explicit enough to validate, query, and convert into stable split
-#' specifications for leakage-aware evaluation.
+#' @section Scope (what splitGraph does):
+#' \itemize{
+#'   \item Model dataset dependency structure as a typed graph.
+#'   \item Validate that structure (structural, semantic, leakage-relevant).
+#'   \item Derive deterministic split \emph{constraints} from the structure.
+#'   \item Emit and validate the tool-agnostic \code{split_spec} interchange
+#'     format (with a formal JSON Schema and a Python reference consumer).
+#' }
+#'
+#' @section Non-goals (what downstream consumers own):
+#' splitGraph deliberately stops at the constraint / \code{split_spec} boundary.
+#' It does \emph{not} generate resamples or folds, perform stratified splitting,
+#' apply purge/embargo, fit or tune models, or produce statistical leakage
+#' evidence. Those belong to downstream consumers. The reference consumer is
+#' \pkg{bioLeak}, whose \code{as_leaksplits()} turns a \code{split_spec} into an
+#' executable split plan; \code{split_spec} is neutral, so other tools (an
+#' \pkg{rsample} adapter, the shipped Python reader, etc.) can consume it
+#' equally. See the \code{split_spec} contract in \code{?as_split_spec} and the
+#' "Scope & relationship to bioLeak" section of the README.
 #'
 #' @keywords internal
 #' @importFrom graphics plot
@@ -22,11 +39,29 @@
 # way that breaks round-trip compatibility with previously constructed
 # objects. A package release that only adds functions or fixes bugs must NOT
 # bump this string.
-.depgraph_schema_version <- "0.1.0"
+#
+# Compatibility policy (enforced by `.depgraph_check_schema_version()`): the
+# MAJOR component is the compatibility boundary. Files whose recorded version
+# shares the installed MAJOR are read-compatible and load silently, because
+# readers tolerate additive change -- `read_dependency_graph()` /
+# `read_split_spec()` fill any field missing from an older file with `NA` and
+# ignore fields they do not recognise. A differing MAJOR (older or newer) loads
+# with a warning suggesting `migrate_dependency_graph_json()` /
+# `migrate_split_spec_json()`. Only a change that would make an older file
+# genuinely unreadable (renaming/removing a field, changing a field's type or
+# meaning) warrants a MAJOR bump.
+#
+# History: "0.1.0" was the initial format. "0.2.0" formalises the on-disk
+# contract with shipped JSON Schemas (`inst/schema/`), a `$schema` reference in
+# output, split_spec provenance (`splitgraph_version`, `derived_at`), and the
+# node/edge/column additions from the 0.3.0 development cycle (Site, Region,
+# Platform, the pairwise relations, and their split_spec annotations). All of
+# those are additive within MAJOR 0, so "0.1.0" files still load silently.
+.depgraph_schema_version <- "0.2.0"
 
 .depgraph_node_types <- c(
   "Sample", "Subject", "Batch", "Study",
-  "Timepoint", "Assay", "FeatureSet", "Outcome"
+  "Timepoint", "Assay", "FeatureSet", "Outcome", "Site", "Region", "Platform"
 )
 
 .depgraph_prefix_map <- c(
@@ -37,7 +72,10 @@
   Timepoint = "timepoint",
   Assay = "assay",
   FeatureSet = "featureset",
-  Outcome = "outcome"
+  Outcome = "outcome",
+  Site = "site",
+  Region = "region",
+  Platform = "platform"
 )
 
 .depgraph_node_schema <- list(
@@ -46,8 +84,8 @@
     required_attrs = character(),
     optional_attrs = c(
       "subject_id", "batch_id", "study_id", "timepoint_id",
-      "assay_id", "featureset_id", "outcome_id", "sample_role",
-      "collection_date", "source_file"
+      "assay_id", "featureset_id", "outcome_id", "site_id", "region_id",
+      "platform_id", "sample_role", "collection_date", "source_file"
     )
   ),
   Subject = list(
@@ -103,6 +141,27 @@
       "outcome_name", "outcome_type", "outcome_value",
       "outcome_scale", "observation_level"
     )
+  ),
+  Site = list(
+    key_field = "site_id",
+    required_attrs = character(),
+    optional_attrs = c(
+      "site_name", "institution", "city", "country", "site_type"
+    )
+  ),
+  Region = list(
+    key_field = "region_id",
+    required_attrs = character(),
+    optional_attrs = c(
+      "region_name", "region_type", "tissue", "organ", "coordinate_system"
+    )
+  ),
+  Platform = list(
+    key_field = "platform_id",
+    required_attrs = character(),
+    optional_attrs = c(
+      "platform_name", "vendor", "model", "technology", "chemistry"
+    )
   )
 )
 
@@ -148,17 +207,25 @@
     "subject_has_outcome",
     "timepoint_precedes",
     "featureset_generated_from_study",
-    "featureset_generated_from_batch"
+    "featureset_generated_from_batch",
+    "sample_collected_at_site",
+    "sample_located_in_region",
+    "sample_run_on_platform",
+    "assay_uses_platform",
+    "subject_related_to",
+    "sample_adjacent_to"
   ),
   from_type = c(
     "Sample", "Sample", "Sample", "Sample", "Sample",
     "Sample", "Sample", "Subject", "Timepoint", "FeatureSet",
-    "FeatureSet"
+    "FeatureSet", "Sample", "Sample", "Sample", "Assay",
+    "Subject", "Sample"
   ),
   to_type = c(
     "Subject", "Batch", "Study", "Timepoint", "Assay",
     "FeatureSet", "Outcome", "Outcome", "Timepoint", "Study",
-    "Batch"
+    "Batch", "Site", "Region", "Platform", "Platform",
+    "Subject", "Sample"
   ),
   stringsAsFactors = FALSE
 )
@@ -190,6 +257,30 @@
     max_targets = 1L,
     missing_code = NULL,
     multiple_code = "sample_multiple_batch_assignments",
+    missing_severity = NULL,
+    multiple_severity = "error"
+  ),
+  sample_collected_at_site = list(
+    min_targets = 0L,
+    max_targets = 1L,
+    missing_code = NULL,
+    multiple_code = "sample_multiple_site_assignments",
+    missing_severity = NULL,
+    multiple_severity = "error"
+  ),
+  sample_located_in_region = list(
+    min_targets = 0L,
+    max_targets = 1L,
+    missing_code = NULL,
+    multiple_code = "sample_multiple_region_assignments",
+    missing_severity = NULL,
+    multiple_severity = "error"
+  ),
+  sample_run_on_platform = list(
+    min_targets = 0L,
+    max_targets = 1L,
+    missing_code = NULL,
+    multiple_code = "sample_multiple_platform_assignments",
     missing_severity = NULL,
     multiple_severity = "error"
   )
@@ -225,6 +316,12 @@
   if (!isTRUE(condition)) {
     stop(message, call. = FALSE)
   }
+}
+
+# Installed splitGraph package version as a string, for stamping provenance.
+# Returns NA_character_ if the version cannot be resolved (e.g. exotic loads).
+.depgraph_package_version <- function() {
+  tryCatch(as.character(utils::packageVersion("splitGraph")), error = function(e) NA_character_)
 }
 
 .depgraph_match_node_type <- function(type) {
