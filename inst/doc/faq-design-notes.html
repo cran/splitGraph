@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+
+
+<title>FAQ and design notes</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">FAQ and design notes</h1>
+
+
+<div id="TOC">
+<ul>
+<li><a href="#why-not-just-call-make_split_plangroup-batch-directly" id="toc-why-not-just-call-make_split_plangroup-batch-directly">Why not
+just call <code>make_split_plan(group = , batch = )</code>
+directly?</a></li>
+<li><a href="#when-does-composite-strict-over-merge" id="toc-when-does-composite-strict-over-merge">When does
+composite-strict over-merge?</a></li>
+<li><a href="#how-do-thresholds-interact-with-transitive-closure" id="toc-how-do-thresholds-interact-with-transitive-closure">How do
+thresholds interact with transitive closure?</a></li>
+<li><a href="#what-does-the-stratum-column-mean-and-does-splitgraph-stratify" id="toc-what-does-the-stratum-column-mean-and-does-splitgraph-stratify">What
+does the <code>stratum</code> column mean, and does splitGraph
+stratify?</a></li>
+<li><a href="#schema-versioning-policy-in-one-place" id="toc-schema-versioning-policy-in-one-place">Schema versioning policy,
+in one place</a></li>
+<li><a href="#can-i-build-a-graph-straight-from-a-summarizedexperiment" id="toc-can-i-build-a-graph-straight-from-a-summarizedexperiment">Can I
+build a graph straight from a SummarizedExperiment?</a></li>
+<li><a href="#which-errors-can-i-catch-programmatically" id="toc-which-errors-can-i-catch-programmatically">Which errors can I
+catch programmatically?</a></li>
+<li><a href="#how-large-a-cohort-can-splitgraph-handle" id="toc-how-large-a-cohort-can-splitgraph-handle">How large a cohort can
+splitGraph handle?</a></li>
+</ul>
+</div>
+
+<div id="why-not-just-call-make_split_plangroup-batch-directly" class="section level2">
+<h2>Why not just call <code>make_split_plan(group = , batch = )</code>
+directly?</h2>
+<p>For a dataset with one subject column and one batch column you
+should: bioLeak’s <code>make_split_plan()</code> reaches the same
+grouping in one call, and splitGraph adds a hop. splitGraph earns its
+place when the structure is not one clean column per axis:</p>
+<ul>
+<li><strong>Validation before splitting.</strong> A sample linked to two
+subjects, a subject that appears in two studies or at two sites, a
+<code>time_index</code> that contradicts
+<code>timepoint_precedes</code>: <code>validate_graph()</code> reports
+these before any fold exists. Column-based grouping silently produces
+folds from inconsistent metadata.</li>
+<li><strong>Composite semantics.</strong>
+<code>mode = &quot;composite&quot;</code> merges samples into connected components
+over <em>all</em> chosen relations. bioLeak’s <code>combined</code> mode
+instead picks a primary axis and deletes training rows sharing a
+secondary level with the test set. Same metadata, different partitions;
+splitGraph makes the choice explicit and reproducible.</li>
+<li><strong>Pairwise relations.</strong> Genetic relatedness and spatial
+adjacency are graded properties of <em>pairs</em>, not categories.
+<code>relatedness_edges_from_kinship()</code> and
+<code>spatial_edges_from_coords()</code> threshold them into edges and
+the derivation takes connected components. No categorical column can
+express this.</li>
+<li><strong>Provenance and interchange.</strong> The
+<code>split_spec</code> records which relations, thresholds and strategy
+produced each group, and travels as schema-checked JSON to Python or any
+other consumer.</li>
+</ul>
+</div>
+<div id="when-does-composite-strict-over-merge" class="section level2">
+<h2>When does composite-strict over-merge?</h2>
+<p>Strict composite grouping is transitive closure. If sample A shares a
+subject with B, and B shares a batch with C, then A, B and C land in one
+group even though A and C share nothing directly. With a few large
+batches this collapses most of the dataset into one component:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a>meta <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>  <span class="at">sample_id  =</span> <span class="fu">paste0</span>(<span class="st">&quot;S&quot;</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">6</span>),</span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a>  <span class="at">subject_id =</span> <span class="fu">c</span>(<span class="st">&quot;P1&quot;</span>, <span class="st">&quot;P1&quot;</span>, <span class="st">&quot;P2&quot;</span>, <span class="st">&quot;P2&quot;</span>, <span class="st">&quot;P3&quot;</span>, <span class="st">&quot;P3&quot;</span>),</span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a>  <span class="at">batch_id   =</span> <span class="fu">c</span>(<span class="st">&quot;B1&quot;</span>, <span class="st">&quot;B2&quot;</span>, <span class="st">&quot;B2&quot;</span>, <span class="st">&quot;B3&quot;</span>, <span class="st">&quot;B3&quot;</span>, <span class="st">&quot;B1&quot;</span>),</span>
+<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a>)</span>
+<span id="cb1-7"><a href="#cb1-7" tabindex="-1"></a>g <span class="ot">&lt;-</span> <span class="fu">graph_from_metadata</span>(meta)</span>
+<span id="cb1-8"><a href="#cb1-8" tabindex="-1"></a><span class="fu">table</span>(<span class="fu">grouping_vector</span>(<span class="fu">derive_split_constraints</span>(g, <span class="st">&quot;composite&quot;</span>, <span class="at">via =</span> <span class="fu">c</span>(<span class="st">&quot;subject&quot;</span>, <span class="st">&quot;batch&quot;</span>))))</span>
+<span id="cb1-9"><a href="#cb1-9" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb1-10"><a href="#cb1-10" tabindex="-1"></a><span class="co">#&gt; component_1 </span></span>
+<span id="cb1-11"><a href="#cb1-11" tabindex="-1"></a><span class="co">#&gt;           6</span></span></code></pre></div>
+<p>Every subject bridges two batches, so all six samples form a single
+group and no split is possible. Three remedies, in order of
+preference:</p>
+<ol style="list-style-type: decimal">
+<li>Ask whether every relation really <em>must</em> be severed. Grouping
+by subject alone here yields three groups; batch can be handled as a
+blocking annotation instead (<code>spec$block_vars</code>).</li>
+<li>Use <code>strategy = &quot;rule_based&quot;</code>: each sample is grouped by
+the first relation in <code>priority</code> that is available to it, so
+relations do not chain.</li>
+<li>Use <code>detect_dependency_components()</code> to see the component
+sizes before deriving, and <code>summarize_leakage_risks()</code> to see
+which leakage paths a given mode actually severs (<code>severed</code>
+column).</li>
+</ol>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="fu">grouping_vector</span>(<span class="fu">derive_split_constraints</span>(g, <span class="st">&quot;composite&quot;</span>, <span class="at">strategy =</span> <span class="st">&quot;rule_based&quot;</span>,</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>                                         <span class="at">via =</span> <span class="fu">c</span>(<span class="st">&quot;subject&quot;</span>, <span class="st">&quot;batch&quot;</span>),</span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>                                         <span class="at">priority =</span> <span class="fu">c</span>(<span class="st">&quot;subject&quot;</span>, <span class="st">&quot;batch&quot;</span>)))</span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a><span class="co">#&gt;                     S1                     S2                     S3 </span></span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a><span class="co">#&gt; &quot;composite_subject:P1&quot; &quot;composite_subject:P1&quot; &quot;composite_subject:P2&quot; </span></span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a><span class="co">#&gt;                     S4                     S5                     S6 </span></span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a><span class="co">#&gt; &quot;composite_subject:P2&quot; &quot;composite_subject:P3&quot; &quot;composite_subject:P3&quot;</span></span></code></pre></div>
+</div>
+<div id="how-do-thresholds-interact-with-transitive-closure" class="section level2">
+<h2>How do thresholds interact with transitive closure?</h2>
+<p><code>relatedness_edges_from_kinship(pairs, threshold)</code> keeps a
+pair when its kinship is <em>at least</em> the threshold;
+<code>spatial_edges_from_coords(coords, radius)</code> keeps a pair when
+its distance is <em>at most</em> the radius. The derivation then forms
+connected components over the kept edges. Two consequences:</p>
+<ul>
+<li>Lowering a kinship threshold (or raising a radius) can only merge
+groups, never split them, and the merging is not local: a chain of
+individually just-over-threshold pairs joins its endpoints even if they
+are unrelated.</li>
+<li>The threshold is a property of the <em>edge set</em>, recorded on it
+and carried into <code>graph$metadata$edge_sources</code> and
+<code>spec$metadata$threshold</code>, so a reader of the spec can see
+which cut produced the groups.</li>
+</ul>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a>pairs <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="at">id1 =</span> <span class="fu">c</span>(<span class="st">&quot;P1&quot;</span>, <span class="st">&quot;P2&quot;</span>), <span class="at">id2 =</span> <span class="fu">c</span>(<span class="st">&quot;P2&quot;</span>, <span class="st">&quot;P3&quot;</span>), <span class="at">kinship =</span> <span class="fu">c</span>(<span class="fl">0.26</span>, <span class="fl">0.13</span>))</span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>meta <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="at">sample_id =</span> <span class="fu">c</span>(<span class="st">&quot;S1&quot;</span>, <span class="st">&quot;S2&quot;</span>, <span class="st">&quot;S3&quot;</span>), <span class="at">subject_id =</span> <span class="fu">c</span>(<span class="st">&quot;P1&quot;</span>, <span class="st">&quot;P2&quot;</span>, <span class="st">&quot;P3&quot;</span>))</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>build <span class="ot">&lt;-</span> <span class="cf">function</span>(threshold) {</span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>  g <span class="ot">&lt;-</span> <span class="fu">build_dependency_graph</span>(</span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>    <span class="fu">list</span>(<span class="fu">create_nodes</span>(meta, <span class="st">&quot;Sample&quot;</span>, <span class="st">&quot;sample_id&quot;</span>), <span class="fu">create_nodes</span>(meta, <span class="st">&quot;Subject&quot;</span>, <span class="st">&quot;subject_id&quot;</span>)),</span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>    <span class="fu">list</span>(<span class="fu">create_edges</span>(meta, <span class="st">&quot;sample_id&quot;</span>, <span class="st">&quot;subject_id&quot;</span>, <span class="st">&quot;Sample&quot;</span>, <span class="st">&quot;Subject&quot;</span>, <span class="st">&quot;sample_belongs_to_subject&quot;</span>),</span>
+<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a>         <span class="fu">relatedness_edges_from_kinship</span>(pairs, <span class="at">threshold =</span> threshold))</span>
+<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a>  )</span>
+<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a>  <span class="fu">grouping_vector</span>(<span class="fu">derive_split_constraints</span>(g, <span class="st">&quot;relatedness&quot;</span>))</span>
+<span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a>}</span>
+<span id="cb3-11"><a href="#cb3-11" tabindex="-1"></a><span class="fu">build</span>(<span class="fl">0.25</span>)  <span class="co"># only P1~P2 pass: {S1,S2}, {S3}</span></span>
+<span id="cb3-12"><a href="#cb3-12" tabindex="-1"></a><span class="co">#&gt;                        S1                        S2                        S3 </span></span>
+<span id="cb3-13"><a href="#cb3-13" tabindex="-1"></a><span class="co">#&gt; &quot;relatedness:component_1&quot; &quot;relatedness:component_1&quot; &quot;relatedness:component_2&quot;</span></span>
+<span id="cb3-14"><a href="#cb3-14" tabindex="-1"></a><span class="fu">build</span>(<span class="fl">0.10</span>)  <span class="co"># P2~P3 also passes and chains: {S1,S2,S3}</span></span>
+<span id="cb3-15"><a href="#cb3-15" tabindex="-1"></a><span class="co">#&gt;                        S1                        S2                        S3 </span></span>
+<span id="cb3-16"><a href="#cb3-16" tabindex="-1"></a><span class="co">#&gt; &quot;relatedness:component_1&quot; &quot;relatedness:component_1&quot; &quot;relatedness:component_1&quot;</span></span></code></pre></div>
+</div>
+<div id="what-does-the-stratum-column-mean-and-does-splitgraph-stratify" class="section level2">
+<h2>What does the <code>stratum</code> column mean, and does splitGraph
+stratify?</h2>
+<p>No. <code>stratum</code> is an <em>annotation</em>: the outcome level
+attached to each sample (from <code>sample_has_outcome</code>, or the
+subject’s outcome via <code>subject_has_outcome</code>). It is exposed
+through <code>spec$stratum_var</code> so a consumer such as
+scikit-learn’s <code>StratifiedGroupKFold</code> or bioLeak’s
+<code>stratify = TRUE</code> can balance folds. Balancing is execution
+and belongs downstream; splitGraph only describes.</p>
+</div>
+<div id="schema-versioning-policy-in-one-place" class="section level2">
+<h2>Schema versioning policy, in one place</h2>
+<ul>
+<li><code>schema_version</code> (currently 0.3.0) is independent of the
+package version. It describes the on-disk JSON contract.</li>
+<li>The <strong>major</strong> component is the compatibility boundary.
+Files sharing the installed major load silently; readers fill fields
+missing from older files with <code>NA</code> and ignore unknown ones. A
+differing major loads with a warning suggesting
+<code>migrate_dependency_graph_json()</code> /
+<code>migrate_split_spec_json()</code>.</li>
+<li>Additive changes (a new column, a new metadata field) bump the minor
+component. Only a rename or a change of meaning would bump the major,
+and none has happened.</li>
+<li>The formal JSON Schemas live under
+<code>inst/schema/&lt;schema_version&gt;/</code>, and every written file
+carries a <code>$schema</code> URL pointing at its own version, so the
+reference stays valid after later bumps.
+<code>validate_graph_json()</code> and
+<code>validate_split_spec_json()</code> (or
+<code>read_*(validate = TRUE)</code>) check a file against the installed
+schema without a JSON Schema engine.</li>
+</ul>
+<p>The R reader is permissive at that boundary, which is worth seeing
+rather than taking on trust:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a>tiny <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="at">sample_id =</span> <span class="fu">c</span>(<span class="st">&quot;S1&quot;</span>, <span class="st">&quot;S2&quot;</span>), <span class="at">subject_id =</span> <span class="fu">c</span>(<span class="st">&quot;P1&quot;</span>, <span class="st">&quot;P2&quot;</span>),</span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a>                   <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a>g_tiny <span class="ot">&lt;-</span> <span class="fu">graph_from_metadata</span>(tiny)</span>
+<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a>p <span class="ot">&lt;-</span> <span class="fu">tempfile</span>(<span class="at">fileext =</span> <span class="st">&quot;.json&quot;</span>)</span>
+<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a><span class="fu">write_split_spec</span>(<span class="fu">as_split_spec</span>(<span class="fu">derive_split_constraints</span>(g_tiny, <span class="st">&quot;subject&quot;</span>),</span>
+<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a>                               <span class="at">graph =</span> g_tiny), p)</span>
+<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a></span>
+<span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a><span class="co"># Pretend the file was written by a future splitGraph with a different major.</span></span>
+<span id="cb4-9"><a href="#cb4-9" tabindex="-1"></a>raw <span class="ot">&lt;-</span> jsonlite<span class="sc">::</span><span class="fu">fromJSON</span>(p, <span class="at">simplifyVector =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb4-10"><a href="#cb4-10" tabindex="-1"></a>raw<span class="sc">$</span>schema_version <span class="ot">&lt;-</span> <span class="st">&quot;1.0.0&quot;</span></span>
+<span id="cb4-11"><a href="#cb4-11" tabindex="-1"></a><span class="fu">writeLines</span>(jsonlite<span class="sc">::</span><span class="fu">toJSON</span>(raw, <span class="at">auto_unbox =</span> <span class="cn">TRUE</span>, <span class="at">null =</span> <span class="st">&quot;null&quot;</span>), p)</span>
+<span id="cb4-12"><a href="#cb4-12" tabindex="-1"></a></span>
+<span id="cb4-13"><a href="#cb4-13" tabindex="-1"></a>back <span class="ot">&lt;-</span> <span class="fu">withCallingHandlers</span>(</span>
+<span id="cb4-14"><a href="#cb4-14" tabindex="-1"></a>  <span class="fu">read_split_spec</span>(p),</span>
+<span id="cb4-15"><a href="#cb4-15" tabindex="-1"></a>  <span class="at">warning =</span> <span class="cf">function</span>(w) {</span>
+<span id="cb4-16"><a href="#cb4-16" tabindex="-1"></a>    <span class="fu">message</span>(<span class="st">&quot;warning: &quot;</span>, <span class="fu">conditionMessage</span>(w))</span>
+<span id="cb4-17"><a href="#cb4-17" tabindex="-1"></a>    <span class="fu">invokeRestart</span>(<span class="st">&quot;muffleWarning&quot;</span>)</span>
+<span id="cb4-18"><a href="#cb4-18" tabindex="-1"></a>  }</span>
+<span id="cb4-19"><a href="#cb4-19" tabindex="-1"></a>)</span>
+<span id="cb4-20"><a href="#cb4-20" tabindex="-1"></a><span class="co">#&gt; warning: Reading split_spec: JSON schema_version `1.0.0` differs in major version from installed splitGraph schema_version `0.3.0`. Loading anyway; consider `migrate_split_spec_json()` to upgrade the file.</span></span>
+<span id="cb4-21"><a href="#cb4-21" tabindex="-1"></a><span class="fu">class</span>(back)</span>
+<span id="cb4-22"><a href="#cb4-22" tabindex="-1"></a><span class="co">#&gt; [1] &quot;split_spec&quot;</span></span>
+<span id="cb4-23"><a href="#cb4-23" tabindex="-1"></a><span class="fu">unlink</span>(p)</span></code></pre></div>
+<p>One asymmetry to know about if you consume the format outside R: the
+shipped Python reader is <em>stricter</em>. Where R warns and loads,
+<code>splitspec</code> raises a <code>ValueError</code> naming the
+version and refuses the file, on the grounds that a non-interactive
+consumer is better off failing than silently misreading a format it does
+not know. Both implementations accept every schema sharing major
+<code>0</code>.</p>
+</div>
+<div id="can-i-build-a-graph-straight-from-a-summarizedexperiment" class="section level2">
+<h2>Can I build a graph straight from a SummarizedExperiment?</h2>
+<p>Yes. <code>graph_from_metadata()</code> is an S3 generic, and the
+<code>SummarizedExperiment</code> method reads <code>colData()</code> as
+the metadata table. When <code>colData</code> has no
+<code>sample_id</code> column the assay column names are used, so a
+typical Bioconductor object needs no preparation at all. Pass
+<code>sample_id_col =</code> to name a different column, and
+<code>columns =</code> to map your own names onto the canonical ones
+exactly as for a data frame.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a>meta <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a>  <span class="at">sample_id  =</span> <span class="fu">c</span>(<span class="st">&quot;S1&quot;</span>, <span class="st">&quot;S2&quot;</span>, <span class="st">&quot;S3&quot;</span>, <span class="st">&quot;S4&quot;</span>),</span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a>  <span class="at">subject_id =</span> <span class="fu">c</span>(<span class="st">&quot;P1&quot;</span>, <span class="st">&quot;P1&quot;</span>, <span class="st">&quot;P2&quot;</span>, <span class="st">&quot;P2&quot;</span>),</span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>  <span class="at">batch_id   =</span> <span class="fu">c</span>(<span class="st">&quot;B1&quot;</span>, <span class="st">&quot;B2&quot;</span>, <span class="st">&quot;B1&quot;</span>, <span class="st">&quot;B2&quot;</span>),</span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a>)</span>
+<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a>se <span class="ot">&lt;-</span> SummarizedExperiment<span class="sc">::</span><span class="fu">SummarizedExperiment</span>(</span>
+<span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a>  <span class="at">assays  =</span> <span class="fu">list</span>(<span class="at">counts =</span> <span class="fu">matrix</span>(<span class="dv">0</span>, <span class="at">nrow =</span> <span class="dv">3</span>, <span class="at">ncol =</span> <span class="dv">4</span>,</span>
+<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a>                                 <span class="at">dimnames =</span> <span class="fu">list</span>(<span class="cn">NULL</span>, meta<span class="sc">$</span>sample_id))),</span>
+<span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a>  <span class="at">colData =</span> meta[, <span class="fu">c</span>(<span class="st">&quot;subject_id&quot;</span>, <span class="st">&quot;batch_id&quot;</span>)]</span>
+<span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a>)</span>
+<span id="cb5-12"><a href="#cb5-12" tabindex="-1"></a></span>
+<span id="cb5-13"><a href="#cb5-13" tabindex="-1"></a>g_se <span class="ot">&lt;-</span> <span class="fu">graph_from_metadata</span>(se, <span class="at">graph_name =</span> <span class="st">&quot;from-se&quot;</span>)</span>
+<span id="cb5-14"><a href="#cb5-14" tabindex="-1"></a><span class="fu">grouping_vector</span>(<span class="fu">derive_split_constraints</span>(g_se, <span class="st">&quot;subject&quot;</span>))</span>
+<span id="cb5-15"><a href="#cb5-15" tabindex="-1"></a><span class="co">#&gt;           S1           S2           S3           S4 </span></span>
+<span id="cb5-16"><a href="#cb5-16" tabindex="-1"></a><span class="co">#&gt; &quot;subject:P1&quot; &quot;subject:P1&quot; &quot;subject:P2&quot; &quot;subject:P2&quot;</span></span>
+<span id="cb5-17"><a href="#cb5-17" tabindex="-1"></a></span>
+<span id="cb5-18"><a href="#cb5-18" tabindex="-1"></a><span class="co"># identical to building from the data frame directly</span></span>
+<span id="cb5-19"><a href="#cb5-19" tabindex="-1"></a><span class="fu">identical</span>(</span>
+<span id="cb5-20"><a href="#cb5-20" tabindex="-1"></a>  <span class="fu">grouping_vector</span>(<span class="fu">derive_split_constraints</span>(g_se, <span class="st">&quot;subject&quot;</span>)),</span>
+<span id="cb5-21"><a href="#cb5-21" tabindex="-1"></a>  <span class="fu">grouping_vector</span>(<span class="fu">derive_split_constraints</span>(<span class="fu">graph_from_metadata</span>(meta), <span class="st">&quot;subject&quot;</span>))</span>
+<span id="cb5-22"><a href="#cb5-22" tabindex="-1"></a>)</span>
+<span id="cb5-23"><a href="#cb5-23" tabindex="-1"></a><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
+</div>
+<div id="which-errors-can-i-catch-programmatically" class="section level2">
+<h2>Which errors can I catch programmatically?</h2>
+<p>Every error inherits from <code>splitgraph_error</code> and carries a
+<code>code</code>; see <code>?splitgraph_conditions</code> for the
+subclasses (<code>splitgraph_schema_error</code>,
+<code>splitgraph_reference_error</code>,
+<code>splitgraph_ambiguity_error</code>,
+<code>splitgraph_validation_error</code>,
+<code>splitgraph_io_error</code>).</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a>g <span class="ot">&lt;-</span> <span class="fu">graph_from_metadata</span>(<span class="fu">data.frame</span>(<span class="at">sample_id =</span> <span class="fu">c</span>(<span class="st">&quot;S1&quot;</span>, <span class="st">&quot;S2&quot;</span>), <span class="at">subject_id =</span> <span class="fu">c</span>(<span class="st">&quot;P1&quot;</span>, <span class="st">&quot;P2&quot;</span>)))</span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a><span class="fu">tryCatch</span>(</span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a>  <span class="fu">query_neighbors</span>(g, <span class="st">&quot;sample:S9&quot;</span>),</span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a>  <span class="at">splitgraph_reference_error =</span> <span class="cf">function</span>(e) e<span class="sc">$</span>code</span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a>)</span>
+<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a><span class="co">#&gt; [1] &quot;unknown_node_ids&quot;</span></span></code></pre></div>
+</div>
+<div id="how-large-a-cohort-can-splitgraph-handle" class="section level2">
+<h2>How large a cohort can splitGraph handle?</h2>
+<p>Every step is linear in nodes plus edges. On a 20,000-sample
+synthetic cohort the shipped benchmark
+(<code>inst/bench/pipeline.R</code>) builds the graph, validates it,
+derives a default composite constraint, enriches a spec and writes both
+JSON files in about twelve seconds on a laptop. More than half of that
+is writing the <em>graph</em> JSON (~6 s); the specification itself
+writes in well under a second, and the derivation steps are hundredths
+of a second. If you only need the handoff artifact, skip
+<code>write_dependency_graph()</code>.</p>
+<p>Two caveats about the guard rail.
+<code>tests/testthat/test-performance.R</code> is a wall-clock
+<em>budget</em> at 5,000 samples with deliberately generous limits, not
+a benchmark; only the composite derivation is additionally checked for
+scaling, by timing 1,000 against 4,000 samples and failing if the ratio
+exceeds 8 (a quadratic step would give roughly 16). Other steps could
+therefore degrade somewhat without tripping it.</p>
+<p>The one inherently quadratic output is the explicit sample-pair table
+of <code>detect_shared_dependencies()</code> and
+<code>detect_dependency_components()$metadata$projection_edges</code>,
+whose size is the number of pairs sharing a target; grouping itself
+never enumerates pairs.</p>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

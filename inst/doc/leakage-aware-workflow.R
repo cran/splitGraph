@@ -212,6 +212,11 @@ graph <- build_dependency_graph(
 graph
 summary(graph)
 
+## ----as-igraph----------------------------------------------------------------
+ig <- as_igraph(graph)
+ig
+igraph::vertex_attr_names(ig)
+
 ## ----plot, fig.width = 7, fig.height = 5--------------------------------------
 plot(graph)
 
@@ -222,11 +227,64 @@ plot(graph)
 # plot(graph, legend_position = "bottomright")
 # plot(graph, node_colors = c(Sample = "#000000"))
 
+## ----plot-focus, fig.width = 7, fig.height = 4--------------------------------
+plot(graph, focus = "sample_projection", via = c("Subject", "Batch"))
+plot(graph, focus = "ego", node = "subject:P1", legend = FALSE)
+
+## ----graph-edit---------------------------------------------------------------
+train_graph <- subset_graph(graph, samples = c("S1", "S2", "S3", "S4"))
+summary(train_graph)$node_types
+
+# Grouping on the subset graph agrees with asking for a subset directly.
+identical(
+  grouping_vector(derive_split_constraints(train_graph, mode = "subject")),
+  grouping_vector(derive_split_constraints(graph, mode = "subject",
+                                           samples = c("S1", "S2", "S3", "S4")))
+)
+
+## ----graph-combine------------------------------------------------------------
+rejoined <- combine_graphs(
+  subset_graph(graph, samples = c("S1", "S2", "S3")),
+  subset_graph(graph, samples = c("S4", "S5", "S6")),
+  graph_name = "rejoined"
+)
+
+identical(summary(rejoined)$node_types, summary(graph)$node_types)
+identical(
+  grouping_vector(derive_split_constraints(rejoined, mode = "subject")),
+  grouping_vector(derive_split_constraints(graph, mode = "subject"))
+)
+
+## ----graph-add-edges----------------------------------------------------------
+kinship_table <- data.frame(
+  id1     = c("P1", "P2"),
+  id2     = c("P2", "P3"),
+  kinship = c(0.25, 0.20),
+  stringsAsFactors = FALSE
+)
+
+graph_with_kinship <- add_edges(
+  graph,
+  relatedness_edges_from_kinship(kinship_table, threshold = 0.1)
+)
+
+summary(graph_with_kinship)$edge_types
+grouping_vector(derive_split_constraints(graph_with_kinship, mode = "relatedness"))
+
+## ----export, eval = FALSE-----------------------------------------------------
+# export_graph(graph, "graph.graphml", format = "graphml")
+# export_graph(graph, "nodes.csv", format = "nodes_csv")
+
 ## ----validation---------------------------------------------------------------
 validation <- validate_graph(graph)
 
 validation
 as.data.frame(validation)[, c("level", "severity", "code", "message")]
+
+## ----validation-filter--------------------------------------------------------
+as.data.frame(
+  validate_graph(graph, levels = "leakage", severities = "warning")
+)[, c("severity", "code", "message")]
 
 ## ----strictness---------------------------------------------------------------
 tryCatch(
@@ -281,6 +339,14 @@ relaxed_constraint <- derive_split_constraints(multi_graph, mode = "subject")
 relaxed_constraint$sample_map[, c("sample_id", "group_id")]
 relaxed_constraint$metadata$warnings
 
+## ----inventory-queries--------------------------------------------------------
+as.data.frame(query_node_type(graph, "Batch"))[, c("node_id", "node_type", "node_key")]
+
+# Which samples went through batch B1?
+as.data.frame(
+  query_edge_type(graph, "sample_processed_in_batch", node_ids = "batch:B1")
+)[, c("edge_id", "from", "to")]
+
 ## ----neighbors-and-paths------------------------------------------------------
 neighbors_s1 <- query_neighbors(graph, node_ids = "sample:S1", direction = "out")
 neighbors_s1
@@ -295,6 +361,12 @@ subject_outcome_path <- query_shortest_paths(
 
 subject_outcome_path
 as.data.frame(subject_outcome_path)
+
+## ----all-paths----------------------------------------------------------------
+s1_to_s6 <- query_paths(graph, from = "sample:S1", to = "sample:S6",
+                        mode = "all", max_length = 2)
+s1_to_s6
+as.data.frame(s1_to_s6)[, c("path_id", "step", "node_id", "node_type")]
 
 ## ----projected-dependencies---------------------------------------------------
 shared_dependencies <- detect_shared_dependencies(
@@ -393,6 +465,11 @@ subject_then_block_by_site <- as_split_spec(
 )
 subject_then_block_by_site$block_vars
 head(subject_then_block_by_site$sample_data[, c("sample_id", "group_id", "site_group")])
+
+## ----site-validation----------------------------------------------------------
+as.data.frame(validate_graph(site_graph))[
+  , c("severity", "code", "message")
+]
 
 ## ----region-structure---------------------------------------------------------
 region_meta <- data.frame(
@@ -518,12 +595,19 @@ split_spec <- as_split_spec(strict_constraint, graph = graph)
 split_spec
 
 as.data.frame(split_spec)[, c(
-  "sample_id", "group_id", "batch_group", "study_group", "timepoint_id", "order_rank"
+  "sample_id", "group_id", "batch_group", "study_group",
+  "stratum", "timepoint_id", "order_rank"
 )]
 
 split_spec_validation <- validate_split_spec(split_spec)
 split_spec_validation
 as.data.frame(split_spec_validation)
+
+## ----spec-roles---------------------------------------------------------------
+split_spec$group_var
+split_spec$block_vars
+split_spec$time_var
+split_spec$stratum_var
 
 ## ----risk-summary-------------------------------------------------------------
 risk_summary <- summarize_leakage_risks(
@@ -542,11 +626,46 @@ write_split_spec(split_spec, spec_path)
 # Validate the file against the shipped JSON Schema.
 validate_split_spec_json(spec_path)$valid
 
-# Round-trip it back into R unchanged.
-spec_round_trip <- read_split_spec(spec_path)
+# Round-trip it back into R unchanged. `validate = TRUE` checks the file
+# against the shipped schema before parsing and runs the preflight validator
+# on the result, failing with a classed error instead of a silent surprise.
+spec_round_trip <- read_split_spec(spec_path, validate = TRUE)
 identical(split_spec$sample_data$group_id, spec_round_trip$sample_data$group_id)
 
 unlink(spec_path)
+
+## ----serialize-graph, eval = requireNamespace("jsonlite", quietly = TRUE)-----
+graph_path <- tempfile(fileext = ".json")
+write_dependency_graph(graph, graph_path)
+
+validate_graph_json(graph_path)$valid
+
+graph_round_trip <- read_dependency_graph(graph_path, validate = TRUE)
+
+# The typed structure survives exactly ...
+identical(as.data.frame(graph$edges), as.data.frame(graph_round_trip$edges))
+identical(summary(graph), summary(graph_round_trip))
+
+# ... and so does everything derived from it.
+identical(
+  grouping_vector(derive_split_constraints(graph_round_trip, mode = "subject")),
+  grouping_vector(subject_constraint)
+)
+identical(
+  as.data.frame(validate_graph(graph)),
+  as.data.frame(validate_graph(graph_round_trip))
+)
+
+## ----schema-stamp, eval = requireNamespace("jsonlite", quietly = TRUE)--------
+on_disk <- jsonlite::fromJSON(graph_path, simplifyVector = FALSE)
+on_disk$schema_version
+sub(".*/schema/", "", on_disk[["$schema"]])
+
+## ----migrate, eval = requireNamespace("jsonlite", quietly = TRUE)-------------
+migrated <- migrate_dependency_graph_json(graph_path, tempfile(fileext = ".json"))
+validate_graph_json(migrated)$valid
+
+unlink(c(graph_path, migrated))
 
 ## ----cookbook-pointer, eval = FALSE-------------------------------------------
 # vignette("adapter-cookbook", package = "splitGraph")       # R adapters
