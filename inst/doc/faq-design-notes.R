@@ -13,6 +13,8 @@ g <- graph_from_metadata(meta)
 table(grouping_vector(derive_split_constraints(g, "composite", via = c("subject", "batch"))))
 
 ## ----remedies-----------------------------------------------------------------
+compare_split_constraints(g, k = 2)
+find_dependency_bridges(g, via = c("Subject", "Batch"))
 grouping_vector(derive_split_constraints(g, "composite", strategy = "rule_based",
                                          via = c("subject", "batch"),
                                          priority = c("subject", "batch")))

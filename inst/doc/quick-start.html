@@ -14,41 +14,28 @@
 
 <title>Quick start: from a metadata table to a split_spec in ten minutes</title>
 
-<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
-// be compatible with the behavior of Pandoc < 2.8).
-document.addEventListener('DOMContentLoaded', function(e) {
-  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
-  var i, h, a;
-  for (i = 0; i < hs.length; i++) {
-    h = hs[i];
-    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
-    a = h.attributes;
-    while (a.length > 0) h.removeAttribute(a[0].name);
+<script src="data:application/javascript;base64,Ly8gUGFuZG9jIDIuOSBhZGRzIGF0dHJpYnV0ZXMgb24gYm90aCBoZWFkZXIgYW5kIGRpdi4gV2UgcmVtb3ZlIHRoZSBmb3JtZXIgKHRvCi8vIGJlIGNvbXBhdGlibGUgd2l0aCB0aGUgYmVoYXZpb3Igb2YgUGFuZG9jIDwgMi44KS4KZG9jdW1lbnQuYWRkRXZlbnRMaXN0ZW5lcignRE9NQ29udGVudExvYWRlZCcsIGZ1bmN0aW9uKGUpIHsKICB2YXIgaHMgPSBkb2N1bWVudC5xdWVyeVNlbGVjdG9yQWxsKCJkaXYuc2VjdGlvbltjbGFzcyo9J2xldmVsJ10gPiA6Zmlyc3QtY2hpbGQiKTsKICB2YXIgaSwgaCwgYTsKICBmb3IgKGkgPSAwOyBpIDwgaHMubGVuZ3RoOyBpKyspIHsKICAgIGggPSBoc1tpXTsKICAgIGlmICghL15oWzEtNl0kL2kudGVzdChoLnRhZ05hbWUpKSBjb250aW51ZTsgIC8vIGl0IHNob3VsZCBiZSBhIGhlYWRlciBoMS1oNgogICAgYSA9IGguYXR0cmlidXRlczsKICAgIHdoaWxlIChhLmxlbmd0aCA+IDApIGgucmVtb3ZlQXR0cmlidXRlKGFbMF0ubmFtZSk7CiAgfQp9KTsK"></script>
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+
+
+<style type="text/css">
+  code {
+    white-space: pre;
   }
-});
-</script>
-
-<style type="text/css">
-code{white-space: pre-wrap;}
-span.smallcaps{font-variant: small-caps;}
-span.underline{text-decoration: underline;}
-div.column{display: inline-block; vertical-align: top; width: 50%;}
-div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
-ul.task-list{list-style: none;}
-</style>
-
-
-
-<style type="text/css">
-code {
-white-space: pre;
-}
-.sourceCode {
-overflow: visible;
-}
+  .sourceCode {
+    overflow: visible;
+  }
 </style>
 <style type="text/css" data-origin="pandoc">
-html { -webkit-text-size-adjust: 100%; }
 pre > code.sourceCode { white-space: pre; position: relative; }
 pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
 pre > code.sourceCode > span:empty { height: 1.2em; }
@@ -64,54 +51,55 @@ pre > code.sourceCode { white-space: pre-wrap; }
 pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
 }
 pre.numberSource code
-{ counter-reset: source-line 0; }
+  { counter-reset: source-line 0; }
 pre.numberSource code > span
-{ position: relative; left: -4em; counter-increment: source-line; }
+  { position: relative; left: -4em; counter-increment: source-line; }
 pre.numberSource code > span > a:first-child::before
-{ content: counter(source-line);
-position: relative; left: -1em; text-align: right; vertical-align: baseline;
-border: none; display: inline-block;
--webkit-touch-callout: none; -webkit-user-select: none;
--khtml-user-select: none; -moz-user-select: none;
--ms-user-select: none; user-select: none;
-padding: 0 4px; width: 4em;
-color: #aaaaaa;
-}
-pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+    color: #aaaaaa;
+  }
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
 div.sourceCode
-{ }
+  {   }
 @media screen {
 pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
 }
-code span.al { color: #ff0000; font-weight: bold; } 
-code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
-code span.at { color: #7d9029; } 
-code span.bn { color: #40a070; } 
-code span.bu { color: #008000; } 
-code span.cf { color: #007020; font-weight: bold; } 
-code span.ch { color: #4070a0; } 
-code span.cn { color: #880000; } 
-code span.co { color: #60a0b0; font-style: italic; } 
-code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
-code span.do { color: #ba2121; font-style: italic; } 
-code span.dt { color: #902000; } 
-code span.dv { color: #40a070; } 
-code span.er { color: #ff0000; font-weight: bold; } 
-code span.ex { } 
-code span.fl { color: #40a070; } 
-code span.fu { color: #06287e; } 
-code span.im { color: #008000; font-weight: bold; } 
-code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
-code span.kw { color: #007020; font-weight: bold; } 
-code span.op { color: #666666; } 
-code span.ot { color: #007020; } 
-code span.pp { color: #bc7a00; } 
-code span.sc { color: #4070a0; } 
-code span.ss { color: #bb6688; } 
-code span.st { color: #4070a0; } 
-code span.va { color: #19177c; } 
-code span.vs { color: #4070a0; } 
-code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+code span.at { color: #7d9029; } /* Attribute */
+code span.bn { color: #40a070; } /* BaseN */
+code span.bu { } /* BuiltIn */
+code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+code span.ch { color: #4070a0; } /* Char */
+code span.cn { color: #880000; } /* Constant */
+code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+code span.dt { color: #902000; } /* DataType */
+code span.dv { color: #40a070; } /* DecVal */
+code span.er { color: #ff0000; font-weight: bold; } /* Error */
+code span.ex { } /* Extension */
+code span.fl { color: #40a070; } /* Float */
+code span.fu { color: #06287e; } /* Function */
+code span.im { } /* Import */
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+code span.op { color: #666666; } /* Operator */
+code span.ot { color: #007020; } /* Other */
+code span.pp { color: #bc7a00; } /* Preprocessor */
+code span.sc { color: #4070a0; } /* SpecialChar */
+code span.ss { color: #bb6688; } /* SpecialString */
+code span.st { color: #4070a0; } /* String */
+code span.va { color: #19177c; } /* Variable */
+code span.vs { color: #4070a0; } /* VerbatimString */
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+
 </style>
 <script>
 // apply pandoc div.sourceCode style to pre.sourceCode instead
@@ -145,187 +133,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; }
 
 
 
-<style type="text/css">body {
-background-color: #fff;
-margin: 1em auto;
-max-width: 700px;
-overflow: visible;
-padding-left: 2em;
-padding-right: 2em;
-font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
-font-size: 14px;
-line-height: 1.35;
-}
-#TOC {
-clear: both;
-margin: 0 0 10px 10px;
-padding: 4px;
-width: 400px;
-border: 1px solid #CCCCCC;
-border-radius: 5px;
-background-color: #f6f6f6;
-font-size: 13px;
-line-height: 1.3;
-}
-#TOC .toctitle {
-font-weight: bold;
-font-size: 15px;
-margin-left: 5px;
-}
-#TOC ul {
-padding-left: 40px;
-margin-left: -1.5em;
-margin-top: 5px;
-margin-bottom: 5px;
-}
-#TOC ul ul {
-margin-left: -2em;
-}
-#TOC li {
-line-height: 16px;
-}
-table {
-margin: 1em auto;
-border-width: 1px;
-border-color: #DDDDDD;
-border-style: outset;
-border-collapse: collapse;
-}
-table th {
-border-width: 2px;
-padding: 5px;
-border-style: inset;
-}
-table td {
-border-width: 1px;
-border-style: inset;
-line-height: 18px;
-padding: 5px 5px;
-}
-table, table th, table td {
-border-left-style: none;
-border-right-style: none;
-}
-table thead, table tr.even {
-background-color: #f7f7f7;
-}
-p {
-margin: 0.5em 0;
-}
-blockquote {
-background-color: #f6f6f6;
-padding: 0.25em 0.75em;
-}
-hr {
-border-style: solid;
-border: none;
-border-top: 1px solid #777;
-margin: 28px 0;
-}
-dl {
-margin-left: 0;
-}
-dl dd {
-margin-bottom: 13px;
-margin-left: 13px;
-}
-dl dt {
-font-weight: bold;
-}
-ul {
-margin-top: 0;
-}
-ul li {
-list-style: circle outside;
-}
-ul ul {
-margin-bottom: 0;
-}
-pre, code {
-background-color: #f7f7f7;
-border-radius: 3px;
-color: #333;
-white-space: pre-wrap; 
-}
-pre {
-border-radius: 3px;
-margin: 5px 0px 10px 0px;
-padding: 10px;
-}
-pre:not([class]) {
-background-color: #f7f7f7;
-}
-code {
-font-family: Consolas, Monaco, 'Courier New', monospace;
-font-size: 85%;
-}
-p > code, li > code {
-padding: 2px 0px;
-}
-div.figure {
-text-align: center;
-}
-img {
-background-color: #FFFFFF;
-padding: 2px;
-border: 1px solid #DDDDDD;
-border-radius: 3px;
-border: 1px solid #CCCCCC;
-margin: 0 5px;
-}
-h1 {
-margin-top: 0;
-font-size: 35px;
-line-height: 40px;
-}
-h2 {
-border-bottom: 4px solid #f7f7f7;
-padding-top: 10px;
-padding-bottom: 2px;
-font-size: 145%;
-}
-h3 {
-border-bottom: 2px solid #f7f7f7;
-padding-top: 10px;
-font-size: 120%;
-}
-h4 {
-border-bottom: 1px solid #f7f7f7;
-margin-left: 8px;
-font-size: 105%;
-}
-h5, h6 {
-border-bottom: 1px solid #ccc;
-font-size: 105%;
-}
-a {
-color: #0033dd;
-text-decoration: none;
-}
-a:hover {
-color: #6666ff; }
-a:visited {
-color: #800080; }
-a:visited:hover {
-color: #BB00BB; }
-a[href^="http:"] {
-text-decoration: underline; }
-a[href^="https:"] {
-text-decoration: underline; }
-
-code > span.kw { color: #555; font-weight: bold; } 
-code > span.dt { color: #902000; } 
-code > span.dv { color: #40a070; } 
-code > span.bn { color: #d14; } 
-code > span.fl { color: #d14; } 
-code > span.ch { color: #d14; } 
-code > span.st { color: #d14; } 
-code > span.co { color: #888888; font-style: italic; } 
-code > span.ot { color: #007020; } 
-code > span.al { color: #ff0000; font-weight: bold; } 
-code > span.fu { color: #900; font-weight: bold; } 
-code > span.er { color: #a61717; background-color: #e3d2d2; } 
-</style>
+<link rel="stylesheet" href="data:text/css,body%20%7B%0Abackground%2Dcolor%3A%20%23fff%3B%0Amargin%3A%201em%20auto%3B%0Amax%2Dwidth%3A%20700px%3B%0Aoverflow%3A%20visible%3B%0Apadding%2Dleft%3A%202em%3B%0Apadding%2Dright%3A%202em%3B%0Afont%2Dfamily%3A%20%22Open%20Sans%22%2C%20%22Helvetica%20Neue%22%2C%20Helvetica%2C%20Arial%2C%20sans%2Dserif%3B%0Afont%2Dsize%3A%2014px%3B%0Aline%2Dheight%3A%201%2E35%3B%0A%7D%0A%23TOC%20%7B%0Aclear%3A%20both%3B%0Amargin%3A%200%200%2010px%2010px%3B%0Apadding%3A%204px%3B%0Awidth%3A%20400px%3B%0Aborder%3A%201px%20solid%20%23CCCCCC%3B%0Aborder%2Dradius%3A%205px%3B%0Abackground%2Dcolor%3A%20%23f6f6f6%3B%0Afont%2Dsize%3A%2013px%3B%0Aline%2Dheight%3A%201%2E3%3B%0A%7D%0A%23TOC%20%2Etoctitle%20%7B%0Afont%2Dweight%3A%20bold%3B%0Afont%2Dsize%3A%2015px%3B%0Amargin%2Dleft%3A%205px%3B%0A%7D%0A%23TOC%20ul%20%7B%0Apadding%2Dleft%3A%2040px%3B%0Amargin%2Dleft%3A%20%2D1%2E5em%3B%0Amargin%2Dtop%3A%205px%3B%0Amargin%2Dbottom%3A%205px%3B%0A%7D%0A%23TOC%20ul%20ul%20%7B%0Amargin%2Dleft%3A%20%2D2em%3B%0A%7D%0A%23TOC%20li%20%7B%0Aline%2Dheight%3A%2016px%3B%0A%7D%0Atable%20%7B%0Amargin%3A%201em%20auto%3B%0Aborder%2Dwidth%3A%201px%3B%0Aborder%2Dcolor%3A%20%23DDDDDD%3B%0Aborder%2Dstyle%3A%20outset%3B%0Aborder%2Dcollapse%3A%20collapse%3B%0A%7D%0Atable%20th%20%7B%0Aborder%2Dwidth%3A%202px%3B%0Apadding%3A%205px%3B%0Aborder%2Dstyle%3A%20inset%3B%0A%7D%0Atable%20td%20%7B%0Aborder%2Dwidth%3A%201px%3B%0Aborder%2Dstyle%3A%20inset%3B%0Aline%2Dheight%3A%2018px%3B%0Apadding%3A%205px%205px%3B%0A%7D%0Atable%2C%20table%20th%2C%20table%20td%20%7B%0Aborder%2Dleft%2Dstyle%3A%20none%3B%0Aborder%2Dright%2Dstyle%3A%20none%3B%0A%7D%0Atable%20thead%2C%20table%20tr%2Eeven%20%7B%0Abackground%2Dcolor%3A%20%23f7f7f7%3B%0A%7D%0Ap%20%7B%0Amargin%3A%200%2E5em%200%3B%0A%7D%0Ablockquote%20%7B%0Abackground%2Dcolor%3A%20%23f6f6f6%3B%0Apadding%3A%200%2E25em%200%2E75em%3B%0A%7D%0Ahr%20%7B%0Aborder%2Dstyle%3A%20solid%3B%0Aborder%3A%20none%3B%0Aborder%2Dtop%3A%201px%20solid%20%23777%3B%0Amargin%3A%2028px%200%3B%0A%7D%0Adl%20%7B%0Amargin%2Dleft%3A%200%3B%0A%7D%0Adl%20dd%20%7B%0Amargin%2Dbottom%3A%2013px%3B%0Amargin%2Dleft%3A%2013px%3B%0A%7D%0Adl%20dt%20%7B%0Afont%2Dweight%3A%20bold%3B%0A%7D%0Aul%20%7B%0Amargin%2Dtop%3A%200%3B%0A%7D%0Aul%20li%20%7B%0Alist%2Dstyle%3A%20circle%20outside%3B%0A%7D%0Aul%20ul%20%7B%0Amargin%2Dbottom%3A%200%3B%0A%7D%0Apre%2C%20code%20%7B%0Abackground%2Dcolor%3A%20%23f7f7f7%3B%0Aborder%2Dradius%3A%203px%3B%0Acolor%3A%20%23333%3B%0Awhite%2Dspace%3A%20pre%2Dwrap%3B%20%0A%7D%0Apre%20%7B%0Aborder%2Dradius%3A%203px%3B%0Amargin%3A%205px%200px%2010px%200px%3B%0Apadding%3A%2010px%3B%0A%7D%0Apre%3Anot%28%5Bclass%5D%29%20%7B%0Abackground%2Dcolor%3A%20%23f7f7f7%3B%0A%7D%0Acode%20%7B%0Afont%2Dfamily%3A%20Consolas%2C%20Monaco%2C%20%27Courier%20New%27%2C%20monospace%3B%0Afont%2Dsize%3A%2085%25%3B%0A%7D%0Ap%20%3E%20code%2C%20li%20%3E%20code%20%7B%0Apadding%3A%202px%200px%3B%0A%7D%0Adiv%2Efigure%20%7B%0Atext%2Dalign%3A%20center%3B%0A%7D%0Aimg%20%7B%0Abackground%2Dcolor%3A%20%23FFFFFF%3B%0Apadding%3A%202px%3B%0Aborder%3A%201px%20solid%20%23DDDDDD%3B%0Aborder%2Dradius%3A%203px%3B%0Aborder%3A%201px%20solid%20%23CCCCCC%3B%0Amargin%3A%200%205px%3B%0A%7D%0Ah1%20%7B%0Amargin%2Dtop%3A%200%3B%0Afont%2Dsize%3A%2035px%3B%0Aline%2Dheight%3A%2040px%3B%0A%7D%0Ah2%20%7B%0Aborder%2Dbottom%3A%204px%20solid%20%23f7f7f7%3B%0Apadding%2Dtop%3A%2010px%3B%0Apadding%2Dbottom%3A%202px%3B%0Afont%2Dsize%3A%20145%25%3B%0A%7D%0Ah3%20%7B%0Aborder%2Dbottom%3A%202px%20solid%20%23f7f7f7%3B%0Apadding%2Dtop%3A%2010px%3B%0Afont%2Dsize%3A%20120%25%3B%0A%7D%0Ah4%20%7B%0Aborder%2Dbottom%3A%201px%20solid%20%23f7f7f7%3B%0Amargin%2Dleft%3A%208px%3B%0Afont%2Dsize%3A%20105%25%3B%0A%7D%0Ah5%2C%20h6%20%7B%0Aborder%2Dbottom%3A%201px%20solid%20%23ccc%3B%0Afont%2Dsize%3A%20105%25%3B%0A%7D%0Aa%20%7B%0Acolor%3A%20%230033dd%3B%0Atext%2Ddecoration%3A%20none%3B%0A%7D%0Aa%3Ahover%20%7B%0Acolor%3A%20%236666ff%3B%20%7D%0Aa%3Avisited%20%7B%0Acolor%3A%20%23800080%3B%20%7D%0Aa%3Avisited%3Ahover%20%7B%0Acolor%3A%20%23BB00BB%3B%20%7D%0Aa%5Bhref%5E%3D%22http%3A%22%5D%20%7B%0Atext%2Ddecoration%3A%20underline%3B%20%7D%0Aa%5Bhref%5E%3D%22https%3A%22%5D%20%7B%0Atext%2Ddecoration%3A%20underline%3B%20%7D%0A%0Acode%20%3E%20span%2Ekw%20%7B%20color%3A%20%23555%3B%20font%2Dweight%3A%20bold%3B%20%7D%20%0Acode%20%3E%20span%2Edt%20%7B%20color%3A%20%23902000%3B%20%7D%20%0Acode%20%3E%20span%2Edv%20%7B%20color%3A%20%2340a070%3B%20%7D%20%0Acode%20%3E%20span%2Ebn%20%7B%20color%3A%20%23d14%3B%20%7D%20%0Acode%20%3E%20span%2Efl%20%7B%20color%3A%20%23d14%3B%20%7D%20%0Acode%20%3E%20span%2Ech%20%7B%20color%3A%20%23d14%3B%20%7D%20%0Acode%20%3E%20span%2Est%20%7B%20color%3A%20%23d14%3B%20%7D%20%0Acode%20%3E%20span%2Eco%20%7B%20color%3A%20%23888888%3B%20font%2Dstyle%3A%20italic%3B%20%7D%20%0Acode%20%3E%20span%2Eot%20%7B%20color%3A%20%23007020%3B%20%7D%20%0Acode%20%3E%20span%2Eal%20%7B%20color%3A%20%23ff0000%3B%20font%2Dweight%3A%20bold%3B%20%7D%20%0Acode%20%3E%20span%2Efu%20%7B%20color%3A%20%23900%3B%20font%2Dweight%3A%20bold%3B%20%7D%20%0Acode%20%3E%20span%2Eer%20%7B%20color%3A%20%23a61717%3B%20background%2Dcolor%3A%20%23e3d2d2%3B%20%7D%20%0A" type="text/css" />
 
 
 
@@ -337,54 +145,38 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 
 
 
-<h1 class="title toc-ignore">Quick start: from a metadata table to a
-split_spec in ten minutes</h1>
+<h1 class="title toc-ignore">Quick start: from a metadata table to a split_spec in ten minutes</h1>
 
 
 <div id="TOC">
 <ul>
-<li><a href="#a-metadata-table" id="toc-a-metadata-table">1. A metadata
-table</a></li>
-<li><a href="#build-and-validate" id="toc-build-and-validate">2. Build
-and validate</a></li>
-<li><a href="#choose-a-constraint-mode" id="toc-choose-a-constraint-mode">3. Choose a constraint mode</a></li>
-<li><a href="#emit-the-split_spec" id="toc-emit-the-split_spec">4. Emit
-the split_spec</a></li>
-<li><a href="#see-which-leakage-paths-the-choice-closes" id="toc-see-which-leakage-paths-the-choice-closes">5. See which leakage
-paths the choice closes</a></li>
-<li><a href="#hand-off" id="toc-hand-off">6. Hand off</a></li>
-<li><a href="#where-to-go-next" id="toc-where-to-go-next">Where to go
-next</a></li>
+<li><a href="#a-metadata-table">1. A metadata table</a></li>
+<li><a href="#build-and-validate">2. Build and validate</a></li>
+<li><a href="#choose-a-constraint-mode">3. Choose a constraint mode</a></li>
+<li><a href="#emit-the-split_spec">4. Emit the split_spec</a></li>
+<li><a href="#see-which-leakage-paths-the-choice-closes">5. See which leakage paths the choice closes</a></li>
+<li><a href="#hand-off">6. Hand off</a></li>
+<li><a href="#where-to-go-next">Where to go next</a></li>
 </ul>
 </div>
 
-<p>splitGraph turns a sample-level metadata table into a <strong>typed
-dependency graph</strong>, validates it, derives a <strong>split
-constraint</strong> (which samples must stay on the same side of any
-train/test split), and emits a tool-agnostic
-<strong><code>split_spec</code></strong> that downstream resampling
-tools consume. It never creates folds itself.</p>
-<p>This is the shortest complete path. Each step links to the vignette
-that goes deeper.</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">library</span>(splitGraph)</span></code></pre></div>
+<p>splitGraph turns a sample-level metadata table into a <strong>typed dependency graph</strong>, validates it, derives a <strong>split constraint</strong> (which samples must stay on the same side of any train/test split), and emits a tool-agnostic <strong><code>split_spec</code></strong> that downstream resampling tools consume. It never creates folds itself.</p>
+<p>This is the shortest complete path. Each step links to the vignette that goes deeper.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(splitGraph)</span></code></pre></div>
 <div id="a-metadata-table" class="section level2">
 <h2>1. A metadata table</h2>
-<p>One row per sample. Only <code>sample_id</code> is required; every
-other canonical column is optional, and absent ones are simply
-skipped.</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>meta <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
-<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>  <span class="at">sample_id    =</span> <span class="fu">paste0</span>(<span class="st">&quot;S&quot;</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">8</span>),</span>
-<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>  <span class="at">subject_id   =</span> <span class="fu">c</span>(<span class="st">&quot;P1&quot;</span>, <span class="st">&quot;P1&quot;</span>, <span class="st">&quot;P2&quot;</span>, <span class="st">&quot;P2&quot;</span>, <span class="st">&quot;P3&quot;</span>, <span class="st">&quot;P3&quot;</span>, <span class="st">&quot;P4&quot;</span>, <span class="st">&quot;P4&quot;</span>),</span>
-<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>  <span class="at">batch_id     =</span> <span class="fu">c</span>(<span class="st">&quot;B1&quot;</span>, <span class="st">&quot;B1&quot;</span>, <span class="st">&quot;B2&quot;</span>, <span class="st">&quot;B2&quot;</span>, <span class="st">&quot;B3&quot;</span>, <span class="st">&quot;B3&quot;</span>, <span class="st">&quot;B3&quot;</span>, <span class="st">&quot;B4&quot;</span>),</span>
-<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a>  <span class="at">site_id      =</span> <span class="fu">c</span>(<span class="st">&quot;NYC&quot;</span>, <span class="st">&quot;NYC&quot;</span>, <span class="st">&quot;NYC&quot;</span>, <span class="st">&quot;NYC&quot;</span>, <span class="st">&quot;BOS&quot;</span>, <span class="st">&quot;BOS&quot;</span>, <span class="st">&quot;BOS&quot;</span>, <span class="st">&quot;BOS&quot;</span>),</span>
-<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a>  <span class="at">timepoint_id =</span> <span class="fu">rep</span>(<span class="fu">c</span>(<span class="st">&quot;T0&quot;</span>, <span class="st">&quot;T1&quot;</span>), <span class="dv">4</span>),</span>
-<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a>  <span class="at">time_index   =</span> <span class="fu">rep</span>(<span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">1</span>), <span class="dv">4</span>),</span>
-<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a>  <span class="at">outcome_id   =</span> <span class="fu">c</span>(<span class="st">&quot;case&quot;</span>, <span class="st">&quot;case&quot;</span>, <span class="st">&quot;ctrl&quot;</span>, <span class="st">&quot;ctrl&quot;</span>, <span class="st">&quot;case&quot;</span>, <span class="st">&quot;case&quot;</span>, <span class="st">&quot;ctrl&quot;</span>, <span class="st">&quot;ctrl&quot;</span>),</span>
-<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
-<span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a>)</span></code></pre></div>
-<p>Four subjects, two samples each. Note batch <code>B3</code>: it holds
-samples from <em>two</em> different subjects, which matters in step
-3.</p>
+<p>One row per sample. Only <code>sample_id</code> is required; every other canonical column is optional, and absent ones are simply skipped.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>meta <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">sample_id    =</span> <span class="fu">paste0</span>(<span class="st">&quot;S&quot;</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">8</span>),</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">subject_id   =</span> <span class="fu">c</span>(<span class="st">&quot;P1&quot;</span>, <span class="st">&quot;P1&quot;</span>, <span class="st">&quot;P2&quot;</span>, <span class="st">&quot;P2&quot;</span>, <span class="st">&quot;P3&quot;</span>, <span class="st">&quot;P3&quot;</span>, <span class="st">&quot;P4&quot;</span>, <span class="st">&quot;P4&quot;</span>),</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">batch_id     =</span> <span class="fu">c</span>(<span class="st">&quot;B1&quot;</span>, <span class="st">&quot;B1&quot;</span>, <span class="st">&quot;B2&quot;</span>, <span class="st">&quot;B2&quot;</span>, <span class="st">&quot;B3&quot;</span>, <span class="st">&quot;B3&quot;</span>, <span class="st">&quot;B3&quot;</span>, <span class="st">&quot;B4&quot;</span>),</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">site_id      =</span> <span class="fu">c</span>(<span class="st">&quot;NYC&quot;</span>, <span class="st">&quot;NYC&quot;</span>, <span class="st">&quot;NYC&quot;</span>, <span class="st">&quot;NYC&quot;</span>, <span class="st">&quot;BOS&quot;</span>, <span class="st">&quot;BOS&quot;</span>, <span class="st">&quot;BOS&quot;</span>, <span class="st">&quot;BOS&quot;</span>),</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">timepoint_id =</span> <span class="fu">rep</span>(<span class="fu">c</span>(<span class="st">&quot;T0&quot;</span>, <span class="st">&quot;T1&quot;</span>), <span class="dv">4</span>),</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">time_index   =</span> <span class="fu">rep</span>(<span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">1</span>), <span class="dv">4</span>),</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">outcome_id   =</span> <span class="fu">c</span>(<span class="st">&quot;case&quot;</span>, <span class="st">&quot;case&quot;</span>, <span class="st">&quot;ctrl&quot;</span>, <span class="st">&quot;ctrl&quot;</span>, <span class="st">&quot;case&quot;</span>, <span class="st">&quot;case&quot;</span>, <span class="st">&quot;ctrl&quot;</span>, <span class="st">&quot;ctrl&quot;</span>),</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<p>Four subjects, two samples each. Note batch <code>B3</code>: it holds samples from <em>two</em> different subjects, which matters in step 3.</p>
 <p><code>graph_from_metadata()</code> auto-detects these columns:</p>
 <table>
 <colgroup>
@@ -408,8 +200,7 @@ samples from <em>two</em> different subjects, which matters in step
 <tr class="even">
 <td><code>subject_id</code></td>
 <td><code>Subject</code> + <code>sample_belongs_to_subject</code></td>
-<td><code>mode = &quot;subject&quot;</code>, and the basis of
-<code>&quot;relatedness&quot;</code></td>
+<td><code>mode = &quot;subject&quot;</code>, and the basis of <code>&quot;relatedness&quot;</code></td>
 </tr>
 <tr class="odd">
 <td><code>batch_id</code></td>
@@ -443,15 +234,13 @@ samples from <em>two</em> different subjects, which matters in step
 </tr>
 <tr class="odd">
 <td><code>timepoint_id</code> (with <code>time_index</code>)</td>
-<td><code>Timepoint</code> + <code>sample_collected_at_timepoint</code>
-(+ <code>timepoint_precedes</code>)</td>
+<td><code>Timepoint</code> + <code>sample_collected_at_timepoint</code> (+ <code>timepoint_precedes</code>)</td>
 <td><code>mode = &quot;time&quot;</code>, and <code>order_rank</code></td>
 </tr>
 <tr class="even">
 <td><code>featureset_id</code></td>
 <td><code>FeatureSet</code> + <code>sample_uses_featureset</code></td>
-<td>not a constraint mode; feeds the shared-provenance advisory and the
-dependency queries</td>
+<td>not a constraint mode; feeds the shared-provenance advisory and the dependency queries</td>
 </tr>
 <tr class="odd">
 <td><code>outcome_id</code> or <code>outcome_value</code></td>
@@ -460,42 +249,24 @@ dependency queries</td>
 </tr>
 </tbody>
 </table>
-<p>Identifier columns may be character, factor, or numeric; they are
-coerced to character. If your columns are named differently, map them
-with <code>columns =</code>, for example
-<code>columns = c(subject_id = &quot;donor&quot;, batch_id = &quot;run&quot;)</code>.
-Relations that have no column, such as genetic relatedness or spatial
-proximity, are built from their own helpers and added to the graph; see
-<code>vignette(&quot;modeling-structure&quot;)</code>.</p>
+<p>Identifier columns may be character, factor, or numeric; they are coerced to character. If your columns are named differently, map them with <code>columns =</code>, for example <code>columns = c(subject_id = &quot;donor&quot;, batch_id = &quot;run&quot;)</code>. Relations that have no column, such as genetic relatedness or spatial proximity, are built from their own helpers and added to the graph; see <code>vignette(&quot;modeling-structure&quot;)</code>.</p>
 </div>
 <div id="build-and-validate" class="section level2">
 <h2>2. Build and validate</h2>
-<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a>g <span class="ot">&lt;-</span> <span class="fu">graph_from_metadata</span>(meta, <span class="at">graph_name =</span> <span class="st">&quot;quick-start&quot;</span>)</span>
-<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>g</span>
-<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a><span class="co">#&gt; &lt;dependency_graph&gt; quick-start </span></span>
-<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a><span class="co">#&gt;   Nodes: 22 </span></span>
-<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a><span class="co">#&gt;   Edges: 41</span></span>
-<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a><span class="fu">validate_graph</span>(g)</span>
-<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a><span class="co">#&gt; &lt;depgraph_validation_report&gt;  quick-start</span></span>
-<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a><span class="co">#&gt;   Valid: TRUE </span></span>
-<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a><span class="co">#&gt;   Issues: 4 </span></span>
-<span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a><span class="co">#&gt;   By severity:</span></span>
-<span id="cb3-11"><a href="#cb3-11" tabindex="-1"></a><span class="co">#&gt;    - advisory : 4</span></span></code></pre></div>
-<p>Validation runs three layers, and each issue carries a severity.
-<strong>Structural</strong> problems (a dangling edge, a duplicate id)
-are errors and stop the build. <strong>Semantic</strong> problems (a
-sample assigned to two subjects, a <code>time_index</code> that
-contradicts the precedence edges) are errors or warnings.
-<strong>Leakage</strong> findings are warnings or advisories: a subject
-appearing in two studies or at two sites is a warning, while repeated
-measures of one subject are an advisory. This cohort produces four of
-those advisories, one per subject, which is exactly the structure the
-split has to respect.</p>
-<p>Use <code>levels =</code> and <code>severities =</code> to narrow the
-report, and <code>validate_graph(g, error_on_fail = TRUE)</code> to stop
-on any error.</p>
-<p>Nothing has decided a split yet. The report describes what the data
-contains.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>g <span class="ot">&lt;-</span> <span class="fu">graph_from_metadata</span>(meta, <span class="at">graph_name =</span> <span class="st">&quot;quick-start&quot;</span>)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>g</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; &lt;dependency_graph&gt; quick-start </span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Nodes: 22 </span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Edges: 41</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="fu">validate_graph</span>(g)</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; &lt;depgraph_validation_report&gt;  quick-start</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Valid: TRUE </span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Issues: 4 </span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   By severity:</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    - advisory : 4</span></span></code></pre></div>
+<p>Validation runs three layers, and each issue carries a severity. <strong>Structural</strong> problems (a dangling edge, a duplicate id) are errors and stop the build. <strong>Semantic</strong> problems (a sample assigned to two subjects, a <code>time_index</code> that contradicts the precedence edges) are errors or warnings. <strong>Leakage</strong> findings are warnings or advisories: a subject appearing in two studies or at two sites is a warning, while repeated measures of one subject are an advisory. This cohort produces four of those advisories, one per subject, which is exactly the structure the split has to respect.</p>
+<p>Use <code>levels =</code> and <code>severities =</code> to narrow the report, and <code>validate_graph(g, error_on_fail = TRUE)</code> to stop on any error.</p>
+<p>Nothing has decided a split yet. The report describes what the data contains.</p>
 </div>
 <div id="choose-a-constraint-mode" class="section level2">
 <h2>3. Choose a constraint mode</h2>
@@ -535,8 +306,7 @@ contains.</p>
 </tr>
 <tr class="odd">
 <td>Tissue region, sequencing platform, assay?</td>
-<td><code>&quot;region&quot;</code>, <code>&quot;platform&quot;</code>,
-<code>&quot;assay&quot;</code></td>
+<td><code>&quot;region&quot;</code>, <code>&quot;platform&quot;</code>, <code>&quot;assay&quot;</code></td>
 <td>likewise</td>
 </tr>
 <tr class="even">
@@ -547,175 +317,137 @@ contains.</p>
 <tr class="odd">
 <td>Genetic relatives or spatial neighbours?</td>
 <td><code>&quot;relatedness&quot;</code>, <code>&quot;spatial&quot;</code></td>
-<td>connected components over thresholded edges; see
-<code>?pairwise_edges</code></td>
+<td>connected components over thresholded edges; see <code>?pairwise_edges</code></td>
 </tr>
 <tr class="even">
 <td>Several of these at once?</td>
 <td><code>&quot;composite&quot;</code></td>
-<td><code>strict</code>: one group per connected component over every
-relation in <code>via</code> (any of the above, including the pairwise
-ones). <code>rule_based</code>: the first relation in
-<code>priority</code> that the sample has</td>
+<td><code>strict</code>: one group per connected component over every relation in <code>via</code> (any of the above, including the pairwise ones). <code>rule_based</code>: the first relation in <code>priority</code> that the sample has</td>
 </tr>
 </tbody>
 </table>
-<p>Start with the one relation you are most sure about. Here that is the
-subject:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a>subject_constraint <span class="ot">&lt;-</span> <span class="fu">derive_split_constraints</span>(g, <span class="at">mode =</span> <span class="st">&quot;subject&quot;</span>)</span>
-<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a>subject_constraint</span>
-<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a><span class="co">#&gt; &lt;split_constraint&gt; subject </span></span>
-<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a><span class="co">#&gt;   Samples: 8 </span></span>
-<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a><span class="co">#&gt;   Groups: 4</span></span>
-<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a><span class="fu">grouping_vector</span>(subject_constraint)</span>
-<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a><span class="co">#&gt;           S1           S2           S3           S4           S5           S6 </span></span>
-<span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a><span class="co">#&gt; &quot;subject:P1&quot; &quot;subject:P1&quot; &quot;subject:P2&quot; &quot;subject:P2&quot; &quot;subject:P3&quot; &quot;subject:P3&quot; </span></span>
-<span id="cb4-9"><a href="#cb4-9" tabindex="-1"></a><span class="co">#&gt;           S7           S8 </span></span>
-<span id="cb4-10"><a href="#cb4-10" tabindex="-1"></a><span class="co">#&gt; &quot;subject:P4&quot; &quot;subject:P4&quot;</span></span></code></pre></div>
-<p><code>grouping_vector()</code> returns the group per sample as a
-named character vector, which is the handle most resampling tools want.
-The full table, with the reason each sample landed where it did, is one
-call away:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="fu">head</span>(<span class="fu">as.data.frame</span>(subject_constraint)[, <span class="fu">c</span>(<span class="st">&quot;sample_id&quot;</span>, <span class="st">&quot;group_id&quot;</span>, <span class="st">&quot;explanation&quot;</span>)], <span class="dv">2</span>)</span>
-<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a><span class="co">#&gt;   sample_id   group_id</span></span>
-<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a><span class="co">#&gt; 1        S1 subject:P1</span></span>
-<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a><span class="co">#&gt; 2        S2 subject:P1</span></span>
-<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a><span class="co">#&gt;                                                   explanation</span></span>
-<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a><span class="co">#&gt; 1 Grouped by subject through sample_belongs_to_subject -&gt; P1.</span></span>
-<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a><span class="co">#&gt; 2 Grouped by subject through sample_belongs_to_subject -&gt; P1.</span></span></code></pre></div>
-<p>If more than one relation has to be respected, combine them. Grouping
-by subject <em>and</em> batch gives three groups rather than four,
-because batch <code>B3</code> links subjects <code>P3</code> and
-<code>P4</code>, so they cannot be separated without splitting a
-batch:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a>composite_constraint <span class="ot">&lt;-</span> <span class="fu">derive_split_constraints</span>(</span>
-<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a>  g, <span class="at">mode =</span> <span class="st">&quot;composite&quot;</span>, <span class="at">via =</span> <span class="fu">c</span>(<span class="st">&quot;subject&quot;</span>, <span class="st">&quot;batch&quot;</span>)</span>
-<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a>)</span>
-<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a><span class="fu">grouping_vector</span>(composite_constraint)</span>
-<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a><span class="co">#&gt;            S1            S2            S3            S4            S5 </span></span>
-<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a><span class="co">#&gt; &quot;component_1&quot; &quot;component_1&quot; &quot;component_2&quot; &quot;component_2&quot; &quot;component_3&quot; </span></span>
-<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a><span class="co">#&gt;            S6            S7            S8 </span></span>
-<span id="cb6-8"><a href="#cb6-8" tabindex="-1"></a><span class="co">#&gt; &quot;component_3&quot; &quot;component_3&quot; &quot;component_3&quot;</span></span></code></pre></div>
-<p>That is the trade-off to watch: each relation you add can only merge
-groups, never split them. With a few large batches a strict composite
-can collapse the whole cohort into one group, which leaves nothing to
-hold out. <code>vignette(&quot;faq-design-notes&quot;)</code> shows when that
-happens and what to do instead.</p>
+<p>Start with the one relation you are most sure about. Here that is the subject:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>subject_constraint <span class="ot">&lt;-</span> <span class="fu">derive_split_constraints</span>(g, <span class="at">mode =</span> <span class="st">&quot;subject&quot;</span>)</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>subject_constraint</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; &lt;split_constraint&gt; subject </span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Samples: 8 </span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Groups: 4</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="fu">grouping_vector</span>(subject_constraint)</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;           S1           S2           S3           S4           S5           S6 </span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; &quot;subject:P1&quot; &quot;subject:P1&quot; &quot;subject:P2&quot; &quot;subject:P2&quot; &quot;subject:P3&quot; &quot;subject:P3&quot; </span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;           S7           S8 </span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; &quot;subject:P4&quot; &quot;subject:P4&quot;</span></span></code></pre></div>
+<p><code>grouping_vector()</code> returns the group per sample as a named character vector, which is the handle most resampling tools want. The full table, with the reason each sample landed where it did, is one call away:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(<span class="fu">as.data.frame</span>(subject_constraint)[, <span class="fu">c</span>(<span class="st">&quot;sample_id&quot;</span>, <span class="st">&quot;group_id&quot;</span>, <span class="st">&quot;explanation&quot;</span>)], <span class="dv">2</span>)</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   sample_id   group_id</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1        S1 subject:P1</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2        S2 subject:P1</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                                                   explanation</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1 Grouped by subject through sample_belongs_to_subject -&gt; P1.</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2 Grouped by subject through sample_belongs_to_subject -&gt; P1.</span></span></code></pre></div>
+<p>If more than one relation has to be respected, combine them. Grouping by subject <em>and</em> batch gives three groups rather than four, because batch <code>B3</code> links subjects <code>P3</code> and <code>P4</code>, so they cannot be separated without splitting a batch:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>composite_constraint <span class="ot">&lt;-</span> <span class="fu">derive_split_constraints</span>(</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  g, <span class="at">mode =</span> <span class="st">&quot;composite&quot;</span>, <span class="at">via =</span> <span class="fu">c</span>(<span class="st">&quot;subject&quot;</span>, <span class="st">&quot;batch&quot;</span>)</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="fu">grouping_vector</span>(composite_constraint)</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;            S1            S2            S3            S4            S5 </span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; &quot;component_1&quot; &quot;component_1&quot; &quot;component_2&quot; &quot;component_2&quot; &quot;component_3&quot; </span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;            S6            S7            S8 </span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; &quot;component_3&quot; &quot;component_3&quot; &quot;component_3&quot;</span></span></code></pre></div>
+<p>That is the trade-off to watch: each relation you add can only merge groups, never split them. With a few large batches a strict composite can collapse the whole cohort into one group, which leaves nothing to hold out. <code>vignette(&quot;faq-design-notes&quot;)</code> shows when that happens and what to do instead.</p>
 </div>
 <div id="emit-the-split_spec" class="section level2">
 <h2>4. Emit the split_spec</h2>
-<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a>spec <span class="ot">&lt;-</span> <span class="fu">as_split_spec</span>(subject_constraint, <span class="at">graph =</span> g)</span>
-<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>spec</span>
-<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a><span class="co">#&gt; &lt;split_spec&gt; subject </span></span>
-<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a><span class="co">#&gt;   Samples: 8 </span></span>
-<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a><span class="co">#&gt;   Groups: 4 </span></span>
-<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a><span class="co">#&gt;   Block vars: batch_group, site_group </span></span>
-<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a><span class="co">#&gt;   Time var: order_rank  </span></span>
-<span id="cb7-8"><a href="#cb7-8" tabindex="-1"></a><span class="co">#&gt;   Stratum var: stratum </span></span>
-<span id="cb7-9"><a href="#cb7-9" tabindex="-1"></a><span class="co">#&gt;   Recommended resampling: grouped_cv</span></span></code></pre></div>
-<p>Passing <code>graph = g</code> enriches the spec with everything the
-constraint did not use as the primary grouping, so a downstream tool can
-block, order, or stratify without ever touching the graph:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a>spec<span class="sc">$</span>group_var    <span class="co"># the split unit</span></span>
-<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a><span class="co">#&gt; [1] &quot;group_id&quot;</span></span>
-<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a>spec<span class="sc">$</span>block_vars   <span class="co"># coarser axes that ideally should not straddle a fold</span></span>
-<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a><span class="co">#&gt; [1] &quot;batch_group&quot; &quot;site_group&quot;</span></span>
-<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a>spec<span class="sc">$</span>time_var     <span class="co"># ordering, when the graph carries one</span></span>
-<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a><span class="co">#&gt; [1] &quot;order_rank&quot;</span></span>
-<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a>spec<span class="sc">$</span>stratum_var  <span class="co"># the outcome level each sample has</span></span>
-<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a><span class="co">#&gt; [1] &quot;stratum&quot;</span></span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>spec <span class="ot">&lt;-</span> <span class="fu">as_split_spec</span>(subject_constraint, <span class="at">graph =</span> g)</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>spec</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; &lt;split_spec&gt; subject </span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Samples: 8 </span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Groups: 4 </span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Block vars: batch_group, site_group </span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Time var: order_rank  </span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Stratum var: stratum </span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Recommended resampling: grouped_cv</span></span></code></pre></div>
+<p>Passing <code>graph = g</code> enriches the spec with everything the constraint did not use as the primary grouping, so a downstream tool can block, order, or stratify without ever touching the graph:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>spec<span class="sc">$</span>group_var    <span class="co"># the split unit</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] &quot;group_id&quot;</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>spec<span class="sc">$</span>block_vars   <span class="co"># coarser axes that ideally should not straddle a fold</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] &quot;batch_group&quot; &quot;site_group&quot;</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>spec<span class="sc">$</span>time_var     <span class="co"># ordering, when the graph carries one</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] &quot;order_rank&quot;</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>spec<span class="sc">$</span>stratum_var  <span class="co"># the outcome level each sample has</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] &quot;stratum&quot;</span></span></code></pre></div>
 <p>Those names point into one sample-level table:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="fu">as.data.frame</span>(spec)[, <span class="fu">c</span>(<span class="st">&quot;sample_id&quot;</span>, <span class="st">&quot;group_id&quot;</span>, <span class="st">&quot;batch_group&quot;</span>, <span class="st">&quot;site_group&quot;</span>,</span>
-<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>                        <span class="st">&quot;stratum&quot;</span>, <span class="st">&quot;order_rank&quot;</span>)]</span>
-<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a><span class="co">#&gt;   sample_id   group_id batch_group site_group stratum order_rank</span></span>
-<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a><span class="co">#&gt; 1        S1 subject:P1          B1        NYC    case          1</span></span>
-<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a><span class="co">#&gt; 2        S2 subject:P1          B1        NYC    case          2</span></span>
-<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a><span class="co">#&gt; 3        S3 subject:P2          B2        NYC    ctrl          1</span></span>
-<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a><span class="co">#&gt; 4        S4 subject:P2          B2        NYC    ctrl          2</span></span>
-<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a><span class="co">#&gt; 5        S5 subject:P3          B3        BOS    case          1</span></span>
-<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a><span class="co">#&gt; 6        S6 subject:P3          B3        BOS    case          2</span></span>
-<span id="cb9-10"><a href="#cb9-10" tabindex="-1"></a><span class="co">#&gt; 7        S7 subject:P4          B3        BOS    ctrl          1</span></span>
-<span id="cb9-11"><a href="#cb9-11" tabindex="-1"></a><span class="co">#&gt; 8        S8 subject:P4          B4        BOS    ctrl          2</span></span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">as.data.frame</span>(spec)[, <span class="fu">c</span>(<span class="st">&quot;sample_id&quot;</span>, <span class="st">&quot;group_id&quot;</span>, <span class="st">&quot;batch_group&quot;</span>, <span class="st">&quot;site_group&quot;</span>,</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>                        <span class="st">&quot;stratum&quot;</span>, <span class="st">&quot;order_rank&quot;</span>)]</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   sample_id   group_id batch_group site_group stratum order_rank</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1        S1 subject:P1          B1        NYC    case          1</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2        S2 subject:P1          B1        NYC    case          2</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3        S3 subject:P2          B2        NYC    ctrl          1</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 4        S4 subject:P2          B2        NYC    ctrl          2</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 5        S5 subject:P3          B3        BOS    case          1</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 6        S6 subject:P3          B3        BOS    case          2</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 7        S7 subject:P4          B3        BOS    ctrl          1</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 8        S8 subject:P4          B4        BOS    ctrl          2</span></span></code></pre></div>
 <p>The spec is checked before it leaves R:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="fu">validate_split_spec</span>(spec)</span>
-<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a><span class="co">#&gt; &lt;split_spec_validation&gt;</span></span>
-<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a><span class="co">#&gt;   Valid: TRUE </span></span>
-<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a><span class="co">#&gt;   Issues: 0</span></span></code></pre></div>
-<p>The <code>stratum</code> column is an <em>annotation</em>: it records
-which outcome level each sample carries so a consumer can stratify.
-splitGraph never balances folds itself.</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">validate_split_spec</span>(spec)</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; &lt;split_spec_validation&gt;</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Valid: TRUE </span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Issues: 0</span></span></code></pre></div>
+<p>The <code>stratum</code> column is an <em>annotation</em>: it records which outcome level each sample carries so a consumer can stratify. splitGraph never balances folds itself.</p>
 </div>
 <div id="see-which-leakage-paths-the-choice-closes" class="section level2">
 <h2>5. See which leakage paths the choice closes</h2>
-<p><code>summarize_leakage_risks()</code> folds the graph validation,
-the constraint, and the spec into one object. The <code>severed</code>
-column is the useful part: it says whether the mode you picked
-structurally eliminates each finding.</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a>risks <span class="ot">&lt;-</span> <span class="fu">summarize_leakage_risks</span>(g, <span class="at">constraint =</span> subject_constraint, <span class="at">split_spec =</span> spec)</span>
-<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a>risks</span>
-<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a><span class="co">#&gt; &lt;leakage_risk_summary&gt;</span></span>
-<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a><span class="co">#&gt;   Overview: Detected 8 structural leakage diagnostics across validation, constraint, and split-spec readiness. </span></span>
-<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a><span class="co">#&gt;   Diagnostics: 8</span></span>
-<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a><span class="fu">unique</span>(<span class="fu">as.data.frame</span>(risks)[, <span class="fu">c</span>(<span class="st">&quot;category&quot;</span>, <span class="st">&quot;severity&quot;</span>, <span class="st">&quot;severed&quot;</span>)])</span>
-<span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a><span class="co">#&gt;                   category severity severed</span></span>
-<span id="cb11-8"><a href="#cb11-8" tabindex="-1"></a><span class="co">#&gt; 1 repeated_subject_samples advisory    TRUE</span></span>
-<span id="cb11-9"><a href="#cb11-9" tabindex="-1"></a><span class="co">#&gt; 5         split_spec_ready advisory      NA</span></span>
-<span id="cb11-10"><a href="#cb11-10" tabindex="-1"></a><span class="co">#&gt; 6       ordering_available advisory      NA</span></span>
-<span id="cb11-11"><a href="#cb11-11" tabindex="-1"></a><span class="co">#&gt; 7       blocking_available advisory      NA</span></span></code></pre></div>
+<p><code>summarize_leakage_risks()</code> folds the graph validation, the constraint, and the spec into one object. The <code>severed</code> column is the useful part: it says whether the mode you picked structurally eliminates each finding.</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>risks <span class="ot">&lt;-</span> <span class="fu">summarize_leakage_risks</span>(g, <span class="at">constraint =</span> subject_constraint, <span class="at">split_spec =</span> spec)</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>risks</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; &lt;leakage_risk_summary&gt;</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Overview: Detected 8 structural leakage diagnostics across validation, constraint, and split-spec readiness. </span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Diagnostics: 8</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="fu">unique</span>(<span class="fu">as.data.frame</span>(risks)[, <span class="fu">c</span>(<span class="st">&quot;category&quot;</span>, <span class="st">&quot;severity&quot;</span>, <span class="st">&quot;severed&quot;</span>)])</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                   category severity severed</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1 repeated_subject_samples advisory    TRUE</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 5         split_spec_ready advisory      NA</span></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 6       ordering_available advisory      NA</span></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 7       blocking_available advisory      NA</span></span></code></pre></div>
 </div>
 <div id="hand-off" class="section level2">
 <h2>6. Hand off</h2>
-<p>Write the spec to JSON for another session, another language, or an
-archive. The format is a versioned contract with a JSON Schema shipped
-in the package:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a>path <span class="ot">&lt;-</span> <span class="fu">tempfile</span>(<span class="at">fileext =</span> <span class="st">&quot;.json&quot;</span>)</span>
-<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a><span class="fu">write_split_spec</span>(spec, path)</span>
-<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a></span>
-<span id="cb12-4"><a href="#cb12-4" tabindex="-1"></a><span class="fu">validate_split_spec_json</span>(path)<span class="sc">$</span>valid</span>
-<span id="cb12-5"><a href="#cb12-5" tabindex="-1"></a><span class="co">#&gt; [1] TRUE</span></span>
-<span id="cb12-6"><a href="#cb12-6" tabindex="-1"></a></span>
-<span id="cb12-7"><a href="#cb12-7" tabindex="-1"></a><span class="co"># Reading with validate = TRUE re-checks the file against the schema and runs</span></span>
-<span id="cb12-8"><a href="#cb12-8" tabindex="-1"></a><span class="co"># the preflight validator, instead of trusting whatever is on disk.</span></span>
-<span id="cb12-9"><a href="#cb12-9" tabindex="-1"></a>back <span class="ot">&lt;-</span> <span class="fu">read_split_spec</span>(path, <span class="at">validate =</span> <span class="cn">TRUE</span>)</span>
-<span id="cb12-10"><a href="#cb12-10" tabindex="-1"></a><span class="fu">identical</span>(back<span class="sc">$</span>sample_data<span class="sc">$</span>group_id, spec<span class="sc">$</span>sample_data<span class="sc">$</span>group_id)</span>
-<span id="cb12-11"><a href="#cb12-11" tabindex="-1"></a><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
-<p>In R, the reference consumer is bioLeak, which turns the spec into an
-executable, leakage-audited split plan:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a>bioLeak<span class="sc">::</span><span class="fu">as_leaksplits</span>(spec, <span class="at">data =</span> my_frame, <span class="at">outcome =</span> <span class="st">&quot;y&quot;</span>)</span></code></pre></div>
-<p>The released bioLeak (0.3.8) accepts the <code>subject</code>,
-<code>batch</code>, <code>study</code> and <code>time</code> modes. For
-the others, including <code>composite</code>, hand it the grouping
-directly; the split is identical, only the route differs:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a>joined <span class="ot">&lt;-</span> <span class="fu">merge</span>(my_frame, spec<span class="sc">$</span>sample_data[, <span class="fu">c</span>(<span class="st">&quot;sample_id&quot;</span>, <span class="st">&quot;group_id&quot;</span>)],</span>
-<span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a>                <span class="at">by =</span> <span class="st">&quot;sample_id&quot;</span>)</span>
-<span id="cb14-3"><a href="#cb14-3" tabindex="-1"></a>bioLeak<span class="sc">::</span><span class="fu">make_split_plan</span>(joined, <span class="at">outcome =</span> <span class="st">&quot;y&quot;</span>,</span>
-<span id="cb14-4"><a href="#cb14-4" tabindex="-1"></a>                         <span class="at">mode =</span> <span class="st">&quot;subject_grouped&quot;</span>, <span class="at">group =</span> <span class="st">&quot;group_id&quot;</span>)</span></code></pre></div>
-<p>In Python, the reader ships with the package and needs only the
-standard library:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a><span class="im">from</span> splitspec <span class="im">import</span> load_split_spec</span>
-<span id="cb15-2"><a href="#cb15-2" tabindex="-1"></a></span>
-<span id="cb15-3"><a href="#cb15-3" tabindex="-1"></a>spec <span class="op">=</span> load_split_spec(<span class="st">&quot;split_spec.json&quot;</span>)</span>
-<span id="cb15-4"><a href="#cb15-4" tabindex="-1"></a>spec.groups()       <span class="co"># group per sample, for GroupKFold(groups=...)</span></span>
-<span id="cb15-5"><a href="#cb15-5" tabindex="-1"></a>spec.strata()       <span class="co"># stratum per sample, for StratifiedGroupKFold(y=...)</span></span>
-<span id="cb15-6"><a href="#cb15-6" tabindex="-1"></a>spec.order_ranks()  <span class="co"># sort by this before TimeSeriesSplit</span></span></code></pre></div>
+<p>Write the spec to JSON for another session, another language, or an archive. The format is a versioned contract with a JSON Schema shipped in the package:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>path <span class="ot">&lt;-</span> <span class="fu">tempfile</span>(<span class="at">fileext =</span> <span class="st">&quot;.json&quot;</span>)</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="fu">write_split_spec</span>(spec, path)</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="fu">validate_split_spec_json</span>(path)<span class="sc">$</span>valid</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] TRUE</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Reading with validate = TRUE re-checks the file against the schema and runs</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="co"># the preflight validator, instead of trusting whatever is on disk.</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>back <span class="ot">&lt;-</span> <span class="fu">read_split_spec</span>(path, <span class="at">validate =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a><span class="fu">identical</span>(back<span class="sc">$</span>sample_data<span class="sc">$</span>group_id, spec<span class="sc">$</span>sample_data<span class="sc">$</span>group_id)</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
+<p>In R, the reference consumer is bioLeak, which turns the spec into an executable, leakage-audited split plan:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>bioLeak<span class="sc">::</span><span class="fu">as_leaksplits</span>(spec, <span class="at">data =</span> my_frame, <span class="at">outcome =</span> <span class="st">&quot;y&quot;</span>)</span></code></pre></div>
+<p>The released bioLeak (0.3.8) accepts the <code>subject</code>, <code>batch</code>, <code>study</code> and <code>time</code> modes. For the others, including <code>composite</code>, hand it the grouping directly; the split is identical, only the route differs:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>joined <span class="ot">&lt;-</span> <span class="fu">merge</span>(my_frame, spec<span class="sc">$</span>sample_data[, <span class="fu">c</span>(<span class="st">&quot;sample_id&quot;</span>, <span class="st">&quot;group_id&quot;</span>)],</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>                <span class="at">by =</span> <span class="st">&quot;sample_id&quot;</span>)</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>bioLeak<span class="sc">::</span><span class="fu">make_split_plan</span>(joined, <span class="at">outcome =</span> <span class="st">&quot;y&quot;</span>,</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>                         <span class="at">mode =</span> <span class="st">&quot;subject_grouped&quot;</span>, <span class="at">group =</span> <span class="st">&quot;group_id&quot;</span>)</span></code></pre></div>
+<p>In Python, the reader ships with the package and needs only the standard library:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> splitspec <span class="im">import</span> load_split_spec</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>spec <span class="op">=</span> load_split_spec(<span class="st">&quot;split_spec.json&quot;</span>)</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>spec.groups()       <span class="co"># group per sample, for GroupKFold(groups=...)</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>spec.strata()       <span class="co"># stratum per sample, for StratifiedGroupKFold(y=...)</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>spec.order_ranks()  <span class="co"># sort by this before TimeSeriesSplit</span></span></code></pre></div>
 </div>
 <div id="where-to-go-next" class="section level2">
 <h2>Where to go next</h2>
 <ul>
-<li><code>vignette(&quot;leakage-aware-workflow&quot;)</code> — the same path in
-full, with querying, validation overrides, every constraint mode, and
-graph editing.</li>
-<li><code>vignette(&quot;modeling-structure&quot;)</code> — site, region,
-platform, assay, and the thresholded relatedness and spatial
-relations.</li>
-<li><code>vignette(&quot;cross-language-handoff&quot;)</code> — R to JSON to
-Python to scikit-learn.</li>
-<li><code>vignette(&quot;adapter-cookbook&quot;)</code> — writing your own
-adapter.</li>
-<li><code>vignette(&quot;case-study-gse60424&quot;)</code> — a real public cohort
-end to end.</li>
-<li><code>vignette(&quot;faq-design-notes&quot;)</code> — why the design is shaped
-this way.</li>
+<li><code>vignette(&quot;leakage-aware-workflow&quot;)</code> — the same path in full, with querying, validation overrides, every constraint mode, and graph editing.</li>
+<li><code>vignette(&quot;modeling-structure&quot;)</code> — site, region, platform, assay, and the thresholded relatedness and spatial relations.</li>
+<li><code>vignette(&quot;cross-language-handoff&quot;)</code> — R to JSON to Python to scikit-learn.</li>
+<li><code>vignette(&quot;adapter-cookbook&quot;)</code> — writing your own adapter.</li>
+<li><code>vignette(&quot;case-study-gse60424&quot;)</code> — a real public cohort end to end.</li>
+<li><code>vignette(&quot;faq-design-notes&quot;)</code> — why the design is shaped this way.</li>
 </ul>
 </div>
 

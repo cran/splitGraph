@@ -678,6 +678,14 @@ time_groups <- time_constraint$sample_map[, c("sample_id", "group_id", "timepoin
 subject_groups
 time_groups
 
+## ----case-study-1-orthogonal--------------------------------------------------
+subject_time_constraint <- derive_split_constraints(
+  graph,
+  mode = "subject",
+  time_ordering = TRUE
+)
+subject_time_constraint$sample_map[, c("sample_id", "group_id", "timepoint_id", "order_rank")]
+
 ## ----case-study-2-------------------------------------------------------------
 cross_study_issues <- as.data.frame(validation)[
   as.data.frame(validation)$code == "subject_cross_study_overlap",
@@ -749,4 +757,8 @@ strategy_summary <- data.frame(
 )
 
 strategy_summary
+
+## ----case-study-4-feasibility-------------------------------------------------
+compare_split_constraints(graph, k = 2)
+find_dependency_bridges(graph, via = c("Subject", "Batch"))
 
