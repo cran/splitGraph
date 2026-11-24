@@ -60,6 +60,18 @@ including \code{sample_id}, \code{sample_node_id}, \code{group_id}, and
 \code{time_index}, \code{order_rank}). Missing but relevant fields are
 retained as \code{NA} columns rather than omitted.
 
+\code{block_vars} lists the blocking annotations available in
+\code{sample_data}: every block column with at least one non-missing value,
+whatever the constraint mode (a subject-mode spec can list
+\code{batch_group} and \code{study_group}). It describes what a consumer
+\emph{can} block or audit on, not what the split already enforces; the
+split is carried by \code{group_var}. Blocking on all of them at once can be
+infeasible, so consumers should choose (e.g.
+\code{bioLeak::as_leaksplits(use_block_constraints = "batch_group")}).
+Exception: for \code{strategy = "min_cut"}, axes on which bridges were
+severed are left out, because blocking on them would undo the min-cut; the
+accepted risk is recorded in \code{metadata$warnings}.
+
 \code{stratum} is filled from the graph when one is supplied: the key of the
 single \code{Outcome} node attached to a sample via
 \code{sample_has_outcome}, or, failing that, the single outcome attached to
@@ -105,7 +117,18 @@ dependency on any of them.
 
 \code{summarize_leakage_risks()} reuses \code{validate_graph()} and
 \code{split_constraint} metadata rather than duplicating downstream
-evaluation logic.
+evaluation logic. When a \code{constraint} is supplied, validation issues for
+\code{repeated_subject_samples}, \code{subject_cross_study_overlap}, and
+\code{subject_cross_site_overlap} are checked directly against the actual
+group assignments of the issue's affected samples in
+\code{constraint$sample_map}: \code{severed} is \code{TRUE} when all
+affected samples have complete, usable assignments and share a single group,
+\code{FALSE} when observed assignments place affected samples in different
+groups, and \code{NA} when assignments are incomplete or insufficient to
+establish co-membership without an observed split. Other leakage warning
+codes without sample-level co-membership sets (such as
+\code{heavy_batch_reuse} and \code{missing_time_ordering}) are evaluated
+from the constraint mode and composite \code{via} metadata.
 }
 \section{What downstream consumers read}{
 

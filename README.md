@@ -52,14 +52,21 @@ correct while still violating the intended scientific separation.
 - one-shot graph construction from canonical metadata via
   `graph_from_metadata()`
 - typed node and edge constructors backed by `igraph`
-- structural, semantic, and leakage-relevant validation, with a documented
+- structural, semantic, and leakage-relevant validation (including unit-checked
+  clinical timeline rules `feature_postdates_index_time` /
+  `outcome_precedes_index_time` and feature-set provenance contamination rules
+  `cross_study_featureset_contamination` /
+  `cross_batch_featureset_contamination`), with a documented
   `validation_overrides` mechanism for explicit exceptions
 - typed query and traversal helpers (with a safety cap on `query_paths()`)
-- projected sample-dependency detection
+- projected sample-dependency detection and feasibility/bridge diagnostics
+  (`compare_split_constraints()`, `find_dependency_bridges()`)
 - split-constraint derivation for subject, batch, study, time, site, region,
-  platform, assay, relatedness, spatial, and composite modes (the pairwise
-  `relatedness` / `spatial` modes group by transitive closure over thresholded
-  edges built with `relatedness_edges_from_kinship()` /
+  platform, assay, relatedness, spatial, and composite modes (`strict`,
+  `rule_based`, and `min_cut`, which preserves hard `subject`/`relatedness`
+  must-links while severing minimal secondary bridges to reach `k`-fold
+  feasibility; the pairwise `relatedness` / `spatial` modes group by transitive
+  closure over thresholded edges built with `relatedness_edges_from_kinship()` /
   `spatial_edges_from_coords()`)
 - translation of constraints into a stable, tool-agnostic `split_spec`
 - split-spec preflight validation and leakage summary helpers
@@ -169,17 +176,18 @@ write_split_spec(spec, path)
 spec2 <- read_split_spec(path)
 ```
 
-For full control over node labels, attribute columns, and the feature-set
-provenance edges, use `create_nodes()` / `create_edges()` /
-`build_dependency_graph()` directly. `graph_from_metadata()` auto-builds
-the nine sample-rooted canonical edges (including `sample_collected_at_site`
-from a `site_id` column, `sample_located_in_region` from a `region_id`
-column, and `sample_run_on_platform` from a `platform_id` column),
-`timepoint_precedes`, and the
-appropriate outcome edge (`sample_has_outcome` by default, or
-`subject_has_outcome` when `outcome_scope = "subject"`). The
-`featureset_generated_from_study` and `featureset_generated_from_batch`
-edges always require the explicit constructor path.
+For full control over node labels and attribute columns, use
+`create_nodes()` / `create_edges()` / `build_dependency_graph()` directly.
+`graph_from_metadata()` auto-builds the nine sample-rooted canonical edges
+(including `sample_collected_at_site` from a `site_id` column,
+`sample_located_in_region` from a `region_id` column, and
+`sample_run_on_platform` from a `platform_id` column), `timepoint_precedes`,
+the appropriate outcome edge (`sample_has_outcome` by default, or
+`subject_has_outcome` when `outcome_scope = "subject"`),
+`featureset_generated_from_study` / `featureset_generated_from_batch` edges
+from `featureset_study_id` / `featureset_batch_id` columns, and optional
+clinical timeline attributes (`index_time`, `collection_time`, `outcome_time`,
+`event_time`).
 
 ## Downstream Handoff
 
@@ -282,9 +290,9 @@ vignette("quick-start", package = "splitGraph")       # start here
 | Ingestion and construction | `ingest_metadata()`, `graph_from_metadata()`, `create_nodes()`, `create_edges()`, `build_dependency_graph()`, `dependency_graph()`, `as_igraph()` |
 | Validation | `validate_graph()` (with `validation_overrides`), `validate_split_spec()` |
 | Queries | `query_node_type()`, `query_edge_type()`, `query_neighbors()`, `query_paths()` (capped by default), `query_shortest_paths()`, `detect_dependency_components()`, `detect_shared_dependencies()` |
-| Constraint derivation | `derive_split_constraints()`, `grouping_vector()` |
+| Constraint derivation & feasibility | `derive_split_constraints()`, `grouping_vector()`, `compare_split_constraints()`, `find_dependency_bridges()` |
 | Split-spec translation | `as_split_spec()`, `summarize_leakage_risks()` |
-| Serialization (JSON) | `write_dependency_graph()`, `read_dependency_graph()`, `write_split_spec()`, `read_split_spec()` |
+| Serialization (JSON) | `write_dependency_graph()`, `read_dependency_graph()`, `write_split_spec()`, `read_split_spec()`, `validate_graph_json()`, `validate_split_spec_json()`, `migrate_dependency_graph_json()`, `migrate_split_spec_json()` |
 
 ## Example Queries
 
@@ -316,6 +324,18 @@ strict_composite <- derive_split_constraints(
 rule_based_composite <- derive_split_constraints(
   g, mode = "composite", strategy = "rule_based",
   priority = c("batch", "study", "subject", "time")
+)
+
+min_cut_composite <- derive_split_constraints(
+  g, mode = "composite", strategy = "min_cut",
+  via = c("Subject", "Batch"), k = 5
+)
+
+compare_split_constraints(
+  g,
+  composite_via = c("Subject", "Batch"),
+  composite_strategies = c("strict", "rule_based", "min_cut"),
+  k = 5
 )
 ```
 
@@ -362,8 +382,11 @@ Validate a handoff file against the contract with `validate_graph_json()` /
 installed major load silently while a differing major warns.
 `migrate_dependency_graph_json()` / `migrate_split_spec_json()` upgrade an
 older file to the current version in place. `NA` values in `sample_data`
-round-trip as JSON `null`. The `jsonlite` package (a `Suggests` dep) must be
-installed.
+round-trip as JSON `null`; `Date`, `POSIXct` (ISO 8601 with UTC offset), and
+`difftime` (ISO 8601 duration strings such as `"P1DT2H"`, `"-PT30M"`, `"PT0S"`)
+node/edge attributes preserve their temporal units and instants across JSON
+round-trips (schema `0.4.0`). The `jsonlite` package (a `Suggests` dep) must
+be installed.
 
 ## Plot Method
 
@@ -390,7 +413,7 @@ citation("splitGraph")
 produces:
 
 > Korkmaz S (2026). *splitGraph: Dataset Dependency Graphs for
-> Leakage-Aware Evaluation*. R package version 0.5.0.
+> Leakage-Aware Evaluation*. R package version 0.6.0.
 > <https://github.com/selcukorkmaz/splitGraph>
 
 ## Contributing

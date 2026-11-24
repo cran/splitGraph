@@ -1,6 +1,12 @@
 ## ----setup, include = FALSE---------------------------------------------------
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
-library(splitGraph)
+package_root <- if (file.exists("../DESCRIPTION")) ".." else "."
+if (requireNamespace("pkgload", quietly = TRUE) &&
+    file.exists(file.path(package_root, "DESCRIPTION"))) {
+  pkgload::load_all(package_root, export_all = FALSE, helpers = FALSE, quiet = TRUE)
+} else {
+  library(splitGraph)
+}
 
 ## ----load---------------------------------------------------------------------
 path <- system.file("extdata", "GSE60424_samples.csv", package = "splitGraph")
@@ -81,6 +87,29 @@ ruled <- derive_split_constraints(
 )
 ruled$metadata$n_groups
 head(as.data.frame(ruled)[, c("sample_id", "group_id", "constraint_type")], 3)
+
+## ----feasibility--------------------------------------------------------------
+cmp <- compare_split_constraints(g, k = 3L)
+cmp
+
+## ----ms-paired----------------------------------------------------------------
+ms_pairs <- data.frame(
+  id1 = c("D31", "D45", "D55"),
+  id2 = c("D33", "D46", "D56"),
+  kinship = c(0.5, 0.5, 0.5),
+  stringsAsFactors = FALSE
+)
+g_paired <- add_edges(
+  g,
+  relatedness_edges_from_kinship(ms_pairs, threshold = 0.25)
+)
+compare_split_constraints(g_paired, modes = c("subject", "relatedness"), k = 3L)
+
+## ----bridges------------------------------------------------------------------
+bridges <- find_dependency_bridges(g, via = c("Subject", "Region"), top_n = 7L)
+as.data.frame(bridges)[, c("node_id", "node_type", "n_samples_linked",
+                           "n_components_before", "n_components_without",
+                           "is_bridge")]
 
 ## ----spec---------------------------------------------------------------------
 spec <- as_split_spec(by_subject, graph = g)

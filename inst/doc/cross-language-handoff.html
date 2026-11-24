@@ -12,7 +12,7 @@
 
 <meta name="author" content="Selçuk Korkmaz" />
 
-<meta name="date" content="2026-11-05" />
+<meta name="date" content="2026-11-24" />
 
 <title>Cross-language handoff: R to JSON to Python to scikit-learn</title>
 
@@ -149,7 +149,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 
 <h1 class="title toc-ignore">Cross-language handoff: R to JSON to Python to scikit-learn</h1>
 <h4 class="author">Selçuk Korkmaz</h4>
-<h4 class="date">2026-11-05</h4>
+<h4 class="date">2026-11-24</h4>
 
 
 <div id="TOC">
@@ -240,7 +240,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <h1>Read in Python</h1>
 <p>The reference consumer lives in the installed package under <code>inst/python</code>. On the R side its location is:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">system.file</span>(<span class="st">&quot;python&quot;</span>, <span class="at">package =</span> <span class="st">&quot;splitGraph&quot;</span>)</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] &quot;/private/var/folders/dr/pwksczrd3gg7sxbphrjs5twh0000gn/T/RtmpYwIJn8/Rbuild2ca86ca43f5e/splitGraph/inst/python&quot;</span></span></code></pre></div>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] &quot;/private/var/folders/dr/pwksczrd3gg7sxbphrjs5twh0000gn/T/RtmpsTTak6/Rbuild14d2c1d87cf51/splitGraph/inst/python&quot;</span></span></code></pre></div>
 <p>That directory is a complete, installable package — <code>pip install</code> it, or just put it on <code>sys.path</code>:</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="st">&quot;&lt;the inst/python path printed above&gt;&quot;</span>            <span class="co"># reader only</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="st">&quot;&lt;the inst/python path printed above&gt;[sklearn]&quot;</span>   <span class="co"># + sklearn helpers</span></span></code></pre></div>
@@ -251,7 +251,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>spec <span class="op">=</span> load_split_spec(<span class="st">&quot;split_spec.json&quot;</span>)</span>
 <span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>spec.schema_version        <span class="co"># &quot;0.3.0&quot;</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>spec.schema_version        <span class="co"># &quot;0.4.0&quot;</span></span>
 <span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>spec.constraint_mode       <span class="co"># &quot;subject&quot;</span></span>
 <span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>spec.recommended_resampling  <span class="co"># &quot;grouped_cv&quot;</span></span>
 <span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>spec.stratum_var           <span class="co"># &quot;stratum&quot;</span></span>

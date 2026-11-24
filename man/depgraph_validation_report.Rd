@@ -62,7 +62,9 @@ severity-specific messages.}
 
 \item{group_var}{Name of the grouping column.}
 
-\item{block_vars}{Optional blocking variable names.}
+\item{block_vars}{Optional names of \code{sample_data} columns carrying
+blocking annotations available to consumers (not axes the split already
+enforces; see \code{\link{as_split_spec}}).}
 
 \item{time_var}{Optional ordering column name.}
 

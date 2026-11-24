@@ -10,7 +10,8 @@ compare_split_constraints(
   modes = NULL,
   k = 5L,
   samples = NULL,
-  composite_via = NULL
+  composite_via = NULL,
+  composite_strategies = "strict"
 )
 
 find_dependency_bridges(
@@ -28,12 +29,18 @@ all modes whose underlying dependency relation is present in \code{graph}
 are compared (plus \code{"composite"} when at least two relations exist).}
 
 \item{k}{Target number of cross-validation folds used to evaluate
-\code{k_fold_feasible} (default \code{5L}).}
+\code{k_fold_feasible} (default \code{5L}): at least \code{k} groups and
+no group larger than \code{1.5 * n / k} samples, so the groups can be
+packed into \code{k} roughly balanced folds.}
 
 \item{samples}{Optional sample subset (sample IDs or node IDs).}
 
 \item{composite_via}{Optional \code{via} vector passed to
 \code{derive_split_constraints()} when \code{"composite"} is evaluated.}
+
+\item{composite_strategies}{Character vector of composite strategies (subset
+of \code{c("strict", "rule_based", "min_cut")}; default \code{"strict"}) to
+evaluate when \code{"composite"} is included in \code{modes}.}
 
 \item{via}{Dependency node types or pairwise mode names to include when
 searching for bridging entities in \code{find_dependency_bridges()}.}
@@ -53,7 +60,16 @@ modes on the same \code{dependency_graph} and returns a side-by-side table of
 group counts, largest-group concentration, effective group count (inverse
 Herfindahl--Hirschman index), $k$-fold feasibility, severed vs. remaining
 structural leakage warnings, and (when outcome strata are present) the
-minimum number of distinct groups per outcome stratum.
+minimum number of distinct groups per outcome stratum. Validation diagnostics
+whose severance is resolved (\code{TRUE} or \code{FALSE}) are counted in
+\code{n_risks_severed} and \code{n_risks_remaining}, while indeterminate
+(\code{NA}) diagnostics are excluded from both counts. When a constraint
+collapses all samples into a single group (\code{n_groups < 2}), must-links
+are preserved within that component (\code{severed = TRUE} in
+\code{summarize_leakage_risks()}), but \code{compare_split_constraints()}
+reports \code{n_risks_severed = 0L} and counts resolved risks in
+\code{n_risks_remaining} because a single group cannot form any nontrivial
+train/test split.
 }
 \details{
 \code{find_dependency_bridges()} identifies non-sample entity nodes (such as

@@ -7,7 +7,16 @@
 #' group counts, largest-group concentration, effective group count (inverse
 #' Herfindahl--Hirschman index), $k$-fold feasibility, severed vs. remaining
 #' structural leakage warnings, and (when outcome strata are present) the
-#' minimum number of distinct groups per outcome stratum.
+#' minimum number of distinct groups per outcome stratum. Validation diagnostics
+#' whose severance is resolved (\code{TRUE} or \code{FALSE}) are counted in
+#' \code{n_risks_severed} and \code{n_risks_remaining}, while indeterminate
+#' (\code{NA}) diagnostics are excluded from both counts. When a constraint
+#' collapses all samples into a single group (\code{n_groups < 2}), must-links
+#' are preserved within that component (\code{severed = TRUE} in
+#' \code{summarize_leakage_risks()}), but \code{compare_split_constraints()}
+#' reports \code{n_risks_severed = 0L} and counts resolved risks in
+#' \code{n_risks_remaining} because a single group cannot form any nontrivial
+#' train/test split.
 #'
 #' \code{find_dependency_bridges()} identifies non-sample entity nodes (such as
 #' shared batches, sites, or subjects) whose removal breaks connected components
@@ -19,10 +28,15 @@
 #'   all modes whose underlying dependency relation is present in \code{graph}
 #'   are compared (plus \code{"composite"} when at least two relations exist).
 #' @param k Target number of cross-validation folds used to evaluate
-#'   \code{k_fold_feasible} (default \code{5L}).
+#'   \code{k_fold_feasible} (default \code{5L}): at least \code{k} groups and
+#'   no group larger than \code{1.5 * n / k} samples, so the groups can be
+#'   packed into \code{k} roughly balanced folds.
 #' @param samples Optional sample subset (sample IDs or node IDs).
 #' @param composite_via Optional \code{via} vector passed to
 #'   \code{derive_split_constraints()} when \code{"composite"} is evaluated.
+#' @param composite_strategies Character vector of composite strategies (subset
+#'   of \code{c("strict", "rule_based", "min_cut")}; default \code{"strict"}) to
+#'   evaluate when \code{"composite"} is included in \code{modes}.
 #' @param via Dependency node types or pairwise mode names to include when
 #'   searching for bridging entities in \code{find_dependency_bridges()}.
 #' @param top_n Optional positive integer limiting the number of bridge rows
@@ -48,13 +62,18 @@ compare_split_constraints <- function(graph,
                                       modes = NULL,
                                       k = 5L,
                                       samples = NULL,
-                                      composite_via = NULL) {
+                                      composite_via = NULL,
+                                      composite_strategies = "strict") {
   .depgraph_assert(inherits(graph, "dependency_graph"), "`graph` must be a `dependency_graph`.")
   .depgraph_assert(
-    is.numeric(k) && length(k) == 1L && !is.na(k) && k >= 2,
-    "`k` must be a single integer >= 2."
+    is.numeric(k) && length(k) == 1L && is.finite(k) && k >= 2 &&
+      k <= .Machine$integer.max && k == trunc(k),
+    "`k` must be a single finite integer >= 2."
   )
   k <- as.integer(k)
+  composite_strategies <- unique(vapply(composite_strategies, function(s) {
+    .depgraph_match_arg(s, c("strict", "rule_based", "min_cut"), "composite_strategies")
+  }, character(1), USE.NAMES = FALSE))
 
   if (is.null(modes)) {
     present_edges <- unique(graph$edges$data$edge_type)
@@ -74,11 +93,12 @@ compare_split_constraints <- function(graph,
     }, character(1), USE.NAMES = FALSE))
   }
 
-  val <- if (is.null(samples)) {
-    validate_graph(graph)
+  eval_graph <- if (is.null(samples)) {
+    graph
   } else {
-    validate_graph(subset_graph(graph, samples = samples, validate = FALSE))
+    subset_graph(graph, samples = samples, validate = FALSE)
   }
+  val <- validate_graph(eval_graph)
   sample_nodes <- .depgraph_constraint_samples(graph, samples)
   stratum_vec <- stats::setNames(
     .split_spec_stratum_from_graph(graph, sample_nodes$node_id),
@@ -86,7 +106,20 @@ compare_split_constraints <- function(graph,
   )
   has_stratum <- any(!is.na(stratum_vec) & nzchar(as.character(stratum_vec)))
 
-  rows <- lapply(modes, function(m) {
+  specs_to_eval <- list()
+  for (m in modes) {
+    if (identical(m, "composite")) {
+      for (st in composite_strategies) {
+        specs_to_eval[[length(specs_to_eval) + 1L]] <- list(mode = m, strategy = st)
+      }
+    } else {
+      specs_to_eval[[length(specs_to_eval) + 1L]] <- list(mode = m, strategy = "strict")
+    }
+  }
+
+  rows <- lapply(specs_to_eval, function(item) {
+    m <- item$mode
+    st <- item$strategy
     via_arg <- if (identical(m, "composite")) {
       if (!is.null(composite_via)) {
         composite_via
@@ -99,7 +132,13 @@ compare_split_constraints <- function(graph,
     if (identical(m, "composite") && length(via_arg) == 0L) {
       via_arg <- NULL
     }
-    con <- derive_split_constraints(graph, mode = m, samples = samples, via = via_arg)
+    # An unreachable min_cut target is reported in the k_fold_feasible column.
+    con <- withCallingHandlers(
+      derive_split_constraints(
+        graph, mode = m, strategy = st, samples = samples, via = via_arg, k = k
+      ),
+      splitGraph_target_unreachable_warning = function(w) invokeRestart("muffleWarning")
+    )
     smap <- con$sample_map
     n <- nrow(smap)
     g_sizes <- if (n > 0L) as.integer(table(smap$group_id)) else integer()
@@ -111,13 +150,19 @@ compare_split_constraints <- function(graph,
     singleton_share <- if (n_groups > 0L) mean(g_sizes == 1L) else NA_real_
 
     # k-fold feasibility: at least k distinct groups and no single group
-    # exceeding max(0.5, 2 / k) of the dataset.
-    feasible <- isTRUE(n_groups >= k && !is.na(max_share) && max_share <= max(0.5, 2 / k))
+    # larger than 1.5 * n / k samples (shared with min_cut).
+    feasible <- .depgraph_k_feasible(g_sizes, n, k)
 
-    risk_df <- summarize_leakage_risks(graph, constraint = con, validation = val)$diagnostics
+    risk_df <- summarize_leakage_risks(eval_graph, constraint = con, validation = val)$diagnostics
     val_risks <- risk_df[risk_df$source == "validation" & !is.na(risk_df$severed), , drop = FALSE]
-    n_severed <- sum(val_risks$severed, na.rm = TRUE)
-    n_remaining <- sum(!val_risks$severed, na.rm = TRUE)
+    if (n_groups >= 2L) {
+      n_severed <- sum(val_risks$severed, na.rm = TRUE)
+      n_remaining <- sum(!val_risks$severed, na.rm = TRUE)
+    } else {
+      # A degenerate 1-group collapse cannot form any train/test split.
+      n_severed <- 0L
+      n_remaining <- nrow(val_risks)
+    }
 
     min_stratum_groups <- NA_integer_
     if (has_stratum && n > 0L) {

@@ -12,7 +12,7 @@
 
 <meta name="author" content="Selçuk Korkmaz" />
 
-<meta name="date" content="2026-11-05" />
+<meta name="date" content="2026-11-24" />
 
 <title>Adapter cookbook: from split_spec to native resamples</title>
 
@@ -149,7 +149,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 
 <h1 class="title toc-ignore">Adapter cookbook: from split_spec to native resamples</h1>
 <h4 class="author">Selçuk Korkmaz</h4>
-<h4 class="date">2026-11-05</h4>
+<h4 class="date">2026-11-24</h4>
 
 
 <div id="TOC">
@@ -455,9 +455,9 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="co"># The file opens with its $schema reference and schema_version.</span></span>
 <span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="fu">readLines</span>(tmp, <span class="at">n =</span> <span class="dv">5</span>), <span class="at">sep =</span> <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
 <span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; {</span></span>
-<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   &quot;$schema&quot;: &quot;https://raw.githubusercontent.com/selcukorkmaz/splitGraph/main/inst/schema/0.3.0/split_spec.schema.json&quot;,</span></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   &quot;$schema&quot;: &quot;https://raw.githubusercontent.com/selcukorkmaz/splitGraph/main/inst/schema/0.4.0/split_spec.schema.json&quot;,</span></span>
 <span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   &quot;splitGraph_object&quot;: &quot;split_spec&quot;,</span></span>
-<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   &quot;schema_version&quot;: &quot;0.3.0&quot;,</span></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   &quot;schema_version&quot;: &quot;0.4.0&quot;,</span></span>
 <span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   &quot;group_var&quot;: &quot;group_id&quot;,</span></span>
 <span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Validate the file against the shipped JSON Schema, then read it back exactly.</span></span>

@@ -200,11 +200,11 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  effective_n_groups singleton_share k_fold_feasible n_risks_severed</span></span>
 <span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                   3               0            TRUE               3</span></span>
 <span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                   3               0            TRUE               0</span></span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                   1               0           FALSE               3</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                   1               0           FALSE               0</span></span>
 <span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  n_risks_remaining min_stratum_groups</span></span>
 <span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                  0                 NA</span></span>
 <span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                  3                 NA</span></span>
-<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                  0                 NA</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                  3                 NA</span></span>
 <span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="fu">find_dependency_bridges</span>(g, <span class="at">via =</span> <span class="fu">c</span>(<span class="st">&quot;Subject&quot;</span>, <span class="st">&quot;Batch&quot;</span>))</span>
 <span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; &lt;graph_query_result&gt; find_dependency_bridges </span></span>
 <span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Rows: 6</span></span>
@@ -248,7 +248,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <div id="schema-versioning-policy-in-one-place" class="section level2">
 <h2>Schema versioning policy, in one place</h2>
 <ul>
-<li><code>schema_version</code> (currently 0.3.0) is independent of the package version. It describes the on-disk JSON contract.</li>
+<li><code>schema_version</code> (currently 0.4.0) is independent of the package version. It describes the on-disk JSON contract.</li>
 <li>The <strong>major</strong> component is the compatibility boundary. Files sharing the installed major load silently; readers fill fields missing from older files with <code>NA</code> and ignore unknown ones. A differing major loads with a warning suggesting <code>migrate_dependency_graph_json()</code> / <code>migrate_split_spec_json()</code>.</li>
 <li>Additive changes (a new column, a new metadata field) bump the minor component. Only a rename or a change of meaning would bump the major, and none has happened.</li>
 <li>The formal JSON Schemas live under <code>inst/schema/&lt;schema_version&gt;/</code>, and every written file carries a <code>$schema</code> URL pointing at its own version, so the reference stays valid after later bumps. <code>validate_graph_json()</code> and <code>validate_split_spec_json()</code> (or <code>read_*(validate = TRUE)</code>) check a file against the installed schema without a JSON Schema engine.</li>
@@ -273,7 +273,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">invokeRestart</span>(<span class="st">&quot;muffleWarning&quot;</span>)</span>
 <span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>  }</span>
 <span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; warning: Reading split_spec: JSON schema_version `1.0.0` differs in major version from installed splitGraph schema_version `0.3.0`. Loading anyway; consider `migrate_split_spec_json()` to upgrade the file.</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; warning: Reading split_spec: JSON schema_version `1.0.0` differs in major version from installed splitGraph schema_version `0.4.0`. Loading anyway; consider `migrate_split_spec_json()` to upgrade the file.</span></span>
 <span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a><span class="fu">class</span>(back)</span>
 <span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] &quot;split_spec&quot;</span></span>
 <span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a><span class="fu">unlink</span>(p)</span></code></pre></div>

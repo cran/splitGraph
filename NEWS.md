@@ -1,3 +1,154 @@
+# splitGraph 0.6.0
+
+## New features
+
+* **`strategy = "min_cut"` for composite constraints.**
+  `derive_split_constraints(mode = "composite", strategy = "min_cut", via =,
+  k =)` keeps the hard must-links (`subject`, `relatedness`) intact and severs
+  as few secondary dependency entities (a batch, study, site, ... node, or a
+  single spatial / pairwise edge) as needed to make the grouping `k`-feasible.
+  Starting from the must-link grouping, it adds entities back, most samples
+  linked first, while the grouping stays feasible; the ones it could not add
+  are listed in `metadata$severed_bridges`. `metadata$target_reached` records
+  whether `k` was reached; when the must-links alone make `k` unreachable, it
+  returns the best grouping they allow and raises
+  `splitGraph_target_unreachable_warning`. It runs in about 0.1 s on 2,000
+  samples with spatial edges.
+* **`min_cut` specs.** `as_split_spec()` leaves axes with severed bridges out
+  of `block_vars`, so a consumer that blocks on `block_vars` (e.g.
+  `bioLeak::as_leaksplits(use_block_constraints = TRUE)`) does not undo the
+  min-cut; links on those axes that were not severed stay enforced through
+  `group_id`. The accepted leakage risk is recorded in `metadata$warnings`, and
+  `summarize_leakage_risks()` evaluates `heavy_batch_reuse` from the observed
+  groups. `recommended_resampling` is `"custom_grouped_cv"`.
+* **`compare_split_constraints(composite_strategies =)`** evaluates any of
+  `"strict"`, `"rule_based"` and `"min_cut"` when `"composite"` is compared
+  (default `"strict"`, as before), one row per strategy.
+* **Clinical timeline attributes and rules.** New optional node attributes:
+  Sample `collection_time`, `index_time`, `outcome_time`, `event_time`;
+  FeatureSet `feature_window_end`, `collection_time`; Outcome `outcome_time`,
+  `event_time`. `graph_from_metadata()` picks them up from same-named columns.
+  Two leakage rules use them:
+  `feature_postdates_index_time` (a sample's `collection_time`, or the window
+  end of a FeatureSet it uses, is later than its `index_time`: look-ahead) and
+  `outcome_precedes_index_time` (the sample's outcome timestamp is earlier than
+  its index, collection or feature-window time). The second is a timestamp
+  ordering check only; it does not detect immortal-time bias or reverse
+  causation, and its message no longer suggests it does. A FeatureSet window
+  is one value for all samples using it; per-patient windows belong in the
+  sample's `collection_time`. Leak conditions and limits are in
+  `?build_dependency_graph`, "Timeline rules".
+* **Timestamps are compared only in the same unit.** Dates (`Date`,
+  `"YYYY-MM-DD"`), date-times (`POSIXct`, `"YYYY-MM-DD HH:MM[:SS]"` with `T`
+  or space and an optional `Z` / `+HH:MM` offset; UTC when there is none),
+  time spans (`difftime` or ISO 8601 duration strings using fixed-length units
+  `W`/`D`/`H`/`M`/`S`, compared in seconds) and bare numbers are told
+  apart; missing and non-finite values are skipped. A bare number is never compared with a date or date-time (it was:
+  a `Date` became seconds while a number stayed in days, so a real violation
+  was missed and every numeric-day outcome looked earlier than a `Date`
+  index). Such pairs, and text that is none of these, are reported as
+  `temporal_unit_mismatch` (warning) and not checked. A date and a date-time
+  are compared by calendar day in the value's own time zone and reported as
+  `temporal_resolution_mismatch` (advisory). A non-date string such as
+  `"baseline"` in a temporal column no longer makes `graph_from_metadata()`
+  fail; like any string not in the forms above (e.g. `"01/02/2020"`), it is
+  reported as not compared.
+* **Date-time and `difftime` attributes keep their meaning through JSON.**
+  `write_dependency_graph()` writes `POSIXct` node and edge attributes as
+  ISO 8601 with their UTC offset (`"2020-01-01T08:00:00-0500"`). They were
+  written as local wall-clock time without an offset and read back as UTC,
+  which could hide (or invent) a look-ahead violation after a round trip.
+  `difftime` attributes are written as ISO 8601 duration strings using
+  fixed-length units (`"P1DT2H"`, `"-PT30M"`, `"PT0S"`; non-finite/`NA` as
+  `null`) instead of failing in `jsonlite::toJSON()`, and are parsed back as
+  durations so timeline verdicts and bare-number unit mismatches are preserved
+  across JSON round-trips.
+* **Feature-set provenance rules.** `graph_from_metadata()` builds
+  `featureset_generated_from_study` / `featureset_generated_from_batch` edges
+  from `featureset_study_id` / `featureset_batch_id` columns (a source not in
+  `study_id` / `batch_id`, e.g. a published signature, gets its own node). New
+  leakage rules `cross_study_featureset_contamination` and
+  `cross_batch_featureset_contamination` fire when a FeatureSet derived from a
+  source study (batch) is used both by samples of that source and by samples
+  outside it. A source with no samples in the data (external knowledge), or
+  use only outside the source, is not flagged; in-sample use only is covered
+  by `shared_featureset_provenance`. `summarize_leakage_risks()` reports these
+  codes as not severed by any split.
+
+## Schema
+
+* **Schema 0.4.0** (`.depgraph_schema_version`, was 0.3.0). Additive: the
+  temporal node attributes above and the `"min_cut"` value of `split_spec`
+  `constraint_strategy`. No field was renamed or removed, so files written
+  under 0.1.0-0.3.0 load silently and `migrate_dependency_graph_json()` /
+  `migrate_split_spec_json()` restamp them. Schemas ship under
+  `inst/schema/0.4.0/` (0.3.0 is kept for files that reference it); the
+  Python reader `splitspec` is version 0.4.0 and reads the new values without
+  change. bioLeak does not read `schema_version`.
+
+## Behaviour changes and bug fixes
+
+* **Stricter k-fold feasibility.** A grouping is k-feasible when it has at
+  least `k` groups and none larger than `1.5 * n / k` samples, in `min_cut`
+  and in `compare_split_constraints()`'s `k_fold_feasible`. The old rule
+  (`max share <= max(0.5, 2 / k)`) accepted e.g. groups of 99 and 1 for
+  `k = 2`, so some rows that were `TRUE` in 0.5.0 are now `FALSE`.
+  `compare_split_constraints()` does not pass `min_cut`'s unreachable-target
+  warning on; its table already reports it.
+* **`block_vars` semantics documented.** `?as_split_spec` now states that
+  `block_vars` lists the blocking annotations available in `sample_data`
+  (what a consumer can block or audit on), not axes the split already
+  enforces, and that blocking on all of them at once can be infeasible
+  (bioLeak's `as_leaksplits(use_block_constraints = )` takes a subset).
+
+### Fixed during development (never released)
+
+These concern the features above and are listed for anyone who ran the
+development version.
+
+* The feature-set provenance rules flagged external signatures (a source
+  with no samples in the data) and are now limited to the leak condition.
+* `min_cut` was a greedy loop that cut the wrong entities when no single cut
+  helped, cut batches before trying a single spatial edge, collapsed to one
+  group and reported success when `k` was unreachable, made the first `via`
+  entry a must-link when `subject` / `relatedness` were absent, and took over
+  20 minutes on 2,000 samples with spatial edges.
+* `min_cut` specs listed severed axes in `block_vars`, so
+  `bioLeak::as_leaksplits(use_block_constraints = TRUE)` re-imposed them and
+  could fail with "No valid folds generated".
+* `graph_from_metadata()` failed with duplicate node IDs when
+  `featureset_study_id` / `featureset_batch_id` mixed in-data and external
+  sources.
+* The timeline rules compared seconds with days, failed on non-date text,
+  and described an ordering violation as "immortal-time or reverse-causality
+  risk" (see above).
+* The timeline rules were quadratic in the number of samples: their
+  look-ups (54 s for 20,000 samples with mixed units) and their message
+  collection (10 s for 20,000 flagged samples). Both are now linear.
+* `summarize_leakage_risks()` reported `heavy_batch_reuse` as `severed = TRUE`
+  under `min_cut` even when `min_cut` had severed that batch; it now resolves
+  the batch's linked samples from the graph edges and evaluates co-membership.
+* `as_split_spec()` omitted severed axes from `block_vars` under `min_cut` only
+  when node IDs carried type prefixes; it now resolves node types from
+  `graph$nodes$data` on unprefixed (`prefix = FALSE`) graphs as well.
+* FeatureSet provenance rules missed pooled multi-source FeatureSets derived
+  from multiple in-data studies or batches and used across them.
+* Non-finite `POSIXct` attributes crashed `write_dependency_graph()` and
+  `Date(NaN)` serialized as `"NaN"`, flipping validation verdicts after a JSON
+  round trip; non-finite `Date`, `POSIXct` and `difftime` attributes now write
+  as `null`.
+* An untimed `sample_has_outcome` edge no longer masks a timed
+  `subject_has_outcome` edge in `outcome_precedes_index_time`.
+* `compare_split_constraints(samples = ...)` now passes the subsetted graph to
+  `summarize_leakage_risks()`, so `min_cut` `heavy_batch_reuse` severance is
+  evaluated on the requested sample subset; `min_cut` and
+  `compare_split_constraints()` also reject non-finite or non-integer `k` and
+  handle 0-sample graphs with `k_fold_feasible = FALSE` / `target_reached = FALSE`.
+* Malformed ISO 8601 date-time strings with out-of-range time-of-day components
+  or UTC offsets (e.g. seconds `>= 60`, hour `24`, offset `-25:00`) are now
+  classified as unparseable (`temporal_unit_mismatch`) rather than silently
+  truncating or shifting.
+
 # splitGraph 0.5.0
 
 ## Feasibility analysis, orthogonal ordering/stratification, and stabilization

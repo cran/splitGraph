@@ -61,8 +61,14 @@
 # split_spec provenance (`via`, `priority`, `threshold`, `igraph_version`,
 # `enrichment_warnings`), and moves the shipped schemas under a versioned
 # directory (`inst/schema/<version>/`). All of those are additive within
-# MAJOR 0, so "0.1.0" and "0.2.0" files still load silently.
-.depgraph_schema_version <- "0.3.0"
+# MAJOR 0, so "0.1.0" and "0.2.0" files still load silently. "0.4.0"
+# (package 0.6.0) adds optional temporal node attributes (Sample
+# `collection_time`, `index_time`, `outcome_time`, `event_time`; FeatureSet
+# `feature_window_end`, `collection_time`; Outcome `outcome_time`,
+# `event_time`) read by the timeline validation rules, and the `"min_cut"`
+# value of split_spec `constraint_strategy` (whose `block_vars` omit severed
+# axes). Additive within MAJOR 0: "0.1.0"-"0.3.0" files still load silently.
+.depgraph_schema_version <- "0.4.0"
 
 .depgraph_node_types <- c(
   "Sample", "Subject", "Batch", "Study",
@@ -90,7 +96,8 @@
     optional_attrs = c(
       "subject_id", "batch_id", "study_id", "timepoint_id",
       "assay_id", "featureset_id", "outcome_id", "site_id", "region_id",
-      "platform_id", "sample_role", "collection_date", "source_file"
+      "platform_id", "sample_role", "collection_date", "collection_time",
+      "index_time", "outcome_time", "event_time", "source_file"
     )
   ),
   Subject = list(
@@ -136,7 +143,8 @@
     required_attrs = character(),
     optional_attrs = c(
       "featureset_name", "modality", "feature_count",
-      "derivation_scope", "derivation_version", "generated_from"
+      "derivation_scope", "derivation_version", "generated_from",
+      "feature_window_end", "collection_time"
     )
   ),
   Outcome = list(
@@ -144,7 +152,7 @@
     required_attrs = character(),
     optional_attrs = c(
       "outcome_name", "outcome_type", "outcome_value",
-      "outcome_scale", "observation_level"
+      "outcome_scale", "observation_level", "outcome_time", "event_time"
     )
   ),
   Site = list(
@@ -717,6 +725,21 @@ NULL
   value[[1L]]
 }
 
+.depgraph_parse_time_index <- function(x) {
+  if (is.null(x) || length(x) == 0L) {
+    return(numeric())
+  }
+  num <- if (is.numeric(x)) {
+    as.numeric(x)
+  } else if (is.logical(x)) {
+    ifelse(is.na(x), NA_real_, NaN)
+  } else {
+    suppressWarnings(as.numeric(as.character(x)))
+  }
+  num[!is.finite(num)] <- NA_real_
+  num
+}
+
 .depgraph_time_order_consistency <- function(node_data, edge_data) {
   time_nodes <- node_data[node_data$node_type == "Timepoint", , drop = FALSE]
   precedes <- edge_data[
@@ -759,10 +782,8 @@ NULL
     time_nodes$attrs,
     function(x) {
       value <- .depgraph_extract_attr(x, "time_index")
-      if (length(value) == 0L || is.na(value)) {
-        return(NA_real_)
-      }
-      suppressWarnings(as.numeric(as.character(value)))
+      parsed <- .depgraph_parse_time_index(value)
+      if (length(parsed) == 0L) NA_real_ else parsed[[1L]]
     },
     FUN.VALUE = numeric(1)
   )

@@ -27,11 +27,18 @@ test_that("F1: compare_split_constraints compares candidate modes and flagsgiant
   expect_equal(subj_row$effective_n_groups, 4)
   expect_identical(subj_row$min_stratum_groups, 4L)
 
-  # Batch B1 collapses all 8 samples into 1 group -> infeasible for k = 2.
+  # Batch B1 collapses all 8 samples into 1 group -> infeasible for k = 2,
+  # and a 1-group collapse does not count as severing risks in comparison.
   batch_row <- df[df$mode == "batch", ]
   expect_identical(batch_row$n_groups, 1L)
   expect_false(batch_row$k_fold_feasible)
+  expect_identical(batch_row$n_risks_severed, 0L)
   expect_identical(batch_row$min_stratum_groups, 1L)
+
+  # Study ST1/ST2 nests P1..P4 within 2 study groups -> empirically severs all 4 subject risks.
+  study_row <- df[df$mode == "study", ]
+  expect_identical(study_row$n_groups, 2L)
+  expect_identical(study_row$n_risks_severed, 4L)
 
   # S3 print and summary methods work cleanly.
   expect_output(print(cmp), "<split_constraint_comparison>")
@@ -71,6 +78,33 @@ test_that("F1: find_dependency_bridges identifies the exact entity collapsing a 
   sp_bridges <- find_dependency_bridges(g_sp, via = "spatial")
   expect_identical(as.data.frame(sp_bridges)$node_id[[1L]], "sample:S2")
   expect_true(as.data.frame(sp_bridges)$is_bridge[[1L]])
+
+  # Actionable bridge-purging via derive_split_constraints(mode = "composite", strategy = "min_cut"):
+  # severs batch:B_bridge while keeping all 3 subjects (P1, P2, P3) intact as 3 balanced groups!
+  con_mc <- derive_split_constraints(
+    g, mode = "composite", strategy = "min_cut",
+    via = c("subject", "batch"), k = 3L
+  )
+  expect_identical(con_mc$strategy, "min_cut")
+  expect_identical(con_mc$metadata$n_groups, 3L)
+  expect_identical(con_mc$metadata$severed_bridges, "batch:B_bridge")
+  # Verify subject integrity: each subject's 2 samples share a group_id
+  gv_mc <- grouping_vector(con_mc)
+  expect_identical(gv_mc[["S1"]], gv_mc[["S2"]])
+  expect_identical(gv_mc[["S3"]], gv_mc[["S4"]])
+  expect_identical(gv_mc[["S5"]], gv_mc[["S6"]])
+  expect_equal(length(unique(gv_mc)), 3L)
+
+  # compare_split_constraints with composite_strategies = c("strict", "min_cut")
+  cmp_mc <- as.data.frame(compare_split_constraints(
+    g, modes = c("subject", "batch", "composite"),
+    k = 3L, composite_strategies = c("strict", "min_cut")
+  ))
+  comp_strict_row <- cmp_mc[cmp_mc$mode == "composite" & cmp_mc$strategy == "strict", ]
+  comp_mincut_row <- cmp_mc[cmp_mc$mode == "composite" & cmp_mc$strategy == "min_cut", ]
+  expect_false(comp_strict_row$k_fold_feasible)
+  expect_true(comp_mincut_row$k_fold_feasible)
+  expect_identical(comp_mincut_row$n_groups, 3L)
 })
 
 test_that("F2: derive_split_constraints(time_ordering = TRUE) and as_split_spec(stratify_by = ...) support orthogonal roles", {
@@ -272,6 +306,692 @@ test_that("F4: Python SplitSpec.iter_splits yields leak-free grouped and tempora
     "assert all(max(r3[i] for i in tr) < min(r3[i] for i in te) for tr, te in splits3); ",
     "print('OK')"
   )
-  res <- system2(py, c("-c", shQuote(code)), stdout = TRUE, stderr = TRUE)
+  res <- system2(py, c("-B", "-c", shQuote(code)), stdout = TRUE, stderr = TRUE)
   expect_identical(tail(res, 1L), "OK")
+})
+
+test_that("B04 / D08: summarize_leakage_risks and compare_split_constraints verify subject risks against actual sample_map assignments", {
+  # 1. D08: multi-subject override where s1 is assigned to p1 while also linked to p2 (with s2, s3)
+  g_d08 <- graph_from_metadata(
+    data.frame(
+      sample_id = c("s1", "s2", "s3"),
+      subject_id = c("p1", "p2", "p2"),
+      stringsAsFactors = FALSE
+    ),
+    validation_overrides = list(allow_multi_subject_samples = TRUE)
+  )
+  edge <- create_edges(
+    data.frame(s = "s1", p = "p2", stringsAsFactors = FALSE),
+    "s", "p", "Sample", "Subject", "sample_belongs_to_subject"
+  )
+  g_d08 <- add_edges(g_d08, edge)
+  con_d08 <- derive_split_constraints(g_d08, "subject")
+  diag_d08 <- as.data.frame(summarize_leakage_risks(g_d08, constraint = con_d08))
+  expect_identical(diag_d08$severed[diag_d08$category == "repeated_subject_samples"], FALSE)
+
+  cmp_d08 <- as.data.frame(compare_split_constraints(g_d08, modes = "subject", k = 2L))
+  expect_identical(cmp_d08$n_risks_severed, 0L)
+  expect_identical(cmp_d08$n_risks_remaining, 1L)
+
+  # 2. Complete same-group assignments return TRUE; different-group assignments return FALSE
+  g_site <- graph_from_metadata(data.frame(
+    sample_id = c("s1", "s2", "s3", "s4"),
+    subject_id = c("p1", "p1", "p2", "p2"),
+    site_id = c("site1", "site2", "site1", "site2"),
+    study_id = c("st1", "st2", "st1", "st2"),
+    stringsAsFactors = FALSE
+  ))
+  diag_subj <- as.data.frame(summarize_leakage_risks(g_site, constraint = derive_split_constraints(g_site, "subject")))
+  expect_true(all(diag_subj$severed[diag_subj$category %in% c(
+    "repeated_subject_samples", "subject_cross_study_overlap", "subject_cross_site_overlap"
+  )]))
+  diag_site <- as.data.frame(summarize_leakage_risks(g_site, constraint = derive_split_constraints(g_site, "site")))
+  expect_true(all(!diag_site$severed[diag_site$category %in% c(
+    "repeated_subject_samples", "subject_cross_study_overlap", "subject_cross_site_overlap"
+  )]))
+
+  # 3. Incomplete coverage: NA when <= 1 affected sample is covered without observed split;
+  # FALSE when observed assignments already split the covered affected samples.
+  con_one_sample <- derive_split_constraints(g_site, "subject", samples = c("s1", "s3"))
+  diag_incomplete <- as.data.frame(summarize_leakage_risks(g_site, constraint = con_one_sample))
+  expect_true(all(is.na(diag_incomplete$severed[diag_incomplete$category == "repeated_subject_samples"])))
+
+  con_split_sub <- derive_split_constraints(g_d08, "subject", samples = c("s1", "s2"))
+  diag_split_sub <- as.data.frame(summarize_leakage_risks(g_d08, constraint = con_split_sub))
+  expect_identical(diag_split_sub$severed[diag_split_sub$category == "repeated_subject_samples"], FALSE)
+
+  # 4. Explicit subset validation evaluates issues on that subset (s2, s3 share p2; s4 is p3 -> 2 groups, severed = TRUE)
+  g_sub_ok <- add_edges(
+    graph_from_metadata(
+      data.frame(
+        sample_id = c("s1", "s2", "s3", "s4"),
+        subject_id = c("p1", "p2", "p2", "p3"),
+        stringsAsFactors = FALSE
+      ),
+      validation_overrides = list(allow_multi_subject_samples = TRUE)
+    ),
+    edge
+  )
+  con_sub_ok <- derive_split_constraints(g_sub_ok, "subject", samples = c("s2", "s3", "s4"))
+  val_sub_ok <- validate_graph(subset_graph(g_sub_ok, samples = c("s2", "s3", "s4"), validate = FALSE))
+  diag_sub_ok <- as.data.frame(summarize_leakage_risks(g_sub_ok, constraint = con_sub_ok, validation = val_sub_ok))
+  expect_identical(diag_sub_ok$severed[diag_sub_ok$category == "repeated_subject_samples"], TRUE)
+  cmp_sub_ok <- as.data.frame(compare_split_constraints(g_sub_ok, modes = "subject", samples = c("s2", "s3", "s4"), k = 2L))
+  expect_identical(cmp_sub_ok$n_risks_severed, 1L)
+  expect_identical(cmp_sub_ok$n_risks_remaining, 0L)
+})
+
+test_that("B09 / D01: unlinked singleton keys never collide with linked entity keys", {
+  g_d01 <- graph_from_metadata(data.frame(
+    sample_id = c("s1", "s2"),
+    subject_id = c(NA_character_, "unlinked:s1"),
+    stringsAsFactors = FALSE
+  ))
+  con_d01 <- derive_split_constraints(g_d01, "subject")
+  gv_d01 <- grouping_vector(con_d01)
+  expect_identical(length(unique(gv_d01)), 2L)
+  expect_identical(con_d01$metadata$n_groups, 2L)
+  expect_identical(length(unique(con_d01$sample_map$group_label)), 2L)
+
+  # Collision with label prefix "unlinked_s1" is also disambiguated
+  g_d01_lbl <- graph_from_metadata(data.frame(
+    sample_id = c("s1", "s2"),
+    subject_id = c(NA_character_, "unlinked_s1"),
+    stringsAsFactors = FALSE
+  ))
+  con_d01_lbl <- derive_split_constraints(g_d01_lbl, "subject")
+  expect_identical(length(unique(con_d01_lbl$sample_map$group_id)), 2L)
+  expect_identical(length(unique(con_d01_lbl$sample_map$group_label)), 2L)
+
+  # Rule-based composite mode disambiguates unlinked singletons too
+  con_comp <- derive_split_constraints(g_d01, mode = "composite", strategy = "rule_based", via = "subject")
+  expect_identical(length(unique(con_comp$sample_map$group_id)), 2L)
+
+  # Ordinary unlinked samples preserve the standard "subject:unlinked:<sample_id>" key
+  g_ordinary <- graph_from_metadata(data.frame(
+    sample_id = c("s1", "s2"),
+    subject_id = c("p1", NA_character_),
+    stringsAsFactors = FALSE
+  ))
+  con_ordinary <- derive_split_constraints(g_ordinary, "subject")
+  expect_identical(
+    con_ordinary$sample_map$group_id[con_ordinary$sample_map$sample_id == "s2"],
+    "subject:unlinked:s2"
+  )
+
+  # JSON round-trip preserves distinct groups
+  if (requireNamespace("jsonlite", quietly = TRUE)) {
+    spec_d01 <- as_split_spec(con_d01, graph = g_d01)
+    tmp <- tempfile(fileext = ".json")
+    on.exit(unlink(tmp), add = TRUE)
+    write_split_spec(spec_d01, tmp)
+    spec_rt <- read_split_spec(tmp, validate = TRUE)
+    expect_identical(length(unique(spec_rt$sample_data$group_id)), 2L)
+  }
+})
+
+test_that("B12 / D02: double-precision time_index values are preserved without character round-trip collapse", {
+  near <- c(1, 1 + 2 * .Machine$double.eps)
+  expect_identical(length(unique(near)), 2L)
+
+  g_d02 <- graph_from_metadata(data.frame(
+    sample_id = c("s1", "s2", "s3", "s4"),
+    subject_id = c("p1", "p1", "p2", "p2"),
+    timepoint_id = c("a", "b", "a", "c_na"),
+    time_index = c(near, near[1], NA_real_),
+    stringsAsFactors = FALSE
+  ))
+  val_d02 <- validate_graph(g_d02)
+  expect_false("non_unique_subject_timepoints" %in% val_d02$issues$code)
+
+  con_d02 <- derive_split_constraints(g_d02, "time")
+  expect_identical(con_d02$sample_map$order_rank, c(1L, 2L, 1L, NA_integer_))
+  expect_identical(con_d02$sample_map$time_index, c(near, near[1], NA_real_))
+
+  # Character numeric strings remain supported
+  g_chr <- graph_from_metadata(data.frame(
+    sample_id = c("s1", "s2"),
+    timepoint_id = c("t1", "t2"),
+    time_index = c("1.25", "2.5"),
+    stringsAsFactors = FALSE
+  ))
+  con_chr <- derive_split_constraints(g_chr, "time")
+  expect_identical(con_chr$sample_map$order_rank, c(1L, 2L))
+  expect_identical(con_chr$sample_map$time_index, c(1.25, 2.5))
+
+  # Nonfinite time_index values (Inf, -Inf, NaN) emit invalid_time_index warning and become NA
+  g_nonfinite <- graph_from_metadata(data.frame(
+    sample_id = c("s1", "s2", "s3", "s4"),
+    timepoint_id = c("t1", "t2", "t3", "t4"),
+    time_index = c(1, Inf, -Inf, NaN),
+    stringsAsFactors = FALSE
+  ))
+  val_nf <- validate_graph(g_nonfinite)
+  expect_identical(sum(val_nf$issues$code == "invalid_time_index"), 3L)
+  con_nf <- derive_split_constraints(g_nonfinite, "time")
+  expect_identical(con_nf$sample_map$order_rank, c(1L, NA_integer_, NA_integer_, NA_integer_))
+  expect_identical(con_nf$sample_map$time_index, c(1, NA_real_, NA_real_, NA_real_))
+
+  # JSON round-trip preserves closely spaced double precision
+  if (requireNamespace("jsonlite", quietly = TRUE)) {
+    g_near <- graph_from_metadata(data.frame(
+      sample_id = c("s1", "s2"),
+      timepoint_id = c("a", "b"),
+      time_index = near,
+      stringsAsFactors = FALSE
+    ))
+    fg <- tempfile(fileext = ".json")
+    fs <- tempfile(fileext = ".json")
+    on.exit(unlink(c(fg, fs)), add = TRUE)
+    write_dependency_graph(g_near, fg)
+    g_near_rt <- read_dependency_graph(fg, validate = TRUE)
+    expect_identical(derive_split_constraints(g_near_rt, "time")$sample_map$order_rank, c(1L, 2L))
+
+    spec_near <- as_split_spec(derive_split_constraints(g_near, "time"), graph = g_near)
+    write_split_spec(spec_near, fs)
+    spec_near_rt <- read_split_spec(fs, validate = TRUE)
+    expect_identical(spec_near_rt$sample_data$time_index, near)
+    expect_identical(spec_near_rt$sample_data$order_rank, c(1L, 2L))
+  }
+})
+
+test_that("B03 & B15 (D09, D10, D11): Python SplitSpec enforces forward-split contract and schema_version validation", {
+  skip_on_cran()
+  py <- ""
+  for (name in c("python3", "python")) {
+    candidate <- Sys.which(name)
+    if (!nzchar(candidate)) next
+    probe <- tryCatch(
+      suppressWarnings(system2(
+        candidate, c("-c", shQuote("import sys; print(sys.version_info[0])")),
+        stdout = TRUE, stderr = TRUE
+      )),
+      error = function(e) character()
+    )
+    if (is.null(attr(probe, "status")) && any(trimws(probe) == "3")) {
+      py <- candidate
+      break
+    }
+  }
+  skip_if(!nzchar(py), "python3 not available")
+
+  py_dir <- system.file("python", package = "splitGraph", mustWork = TRUE)
+  py_script <- tempfile(fileext = ".py")
+  on.exit(unlink(py_script), add = TRUE)
+  writeLines(c(
+    sprintf("import sys; sys.path.insert(0, %s)", shQuote(py_dir)),
+    "from splitspec.reader import SplitSpec",
+    "",
+    "def expect_val_err(fn, substr=None):",
+    "    try:",
+    "        fn()",
+    "    except ValueError as exc:",
+    "        if substr is not None:",
+    "            assert substr in str(exc), f'Expected {substr!r} in {str(exc)!r}'",
+    "        return",
+    "    raise AssertionError('Expected ValueError')",
+    "",
+    "# 1. Original two-rank rejection with n_splits=2",
+    "two_rank = SplitSpec({",
+    "    'splitGraph_object': 'split_spec', 'schema_version': '0.3.0',",
+    "    'group_var': 'group_id', 'time_var': 'order_rank',",
+    "    'ordering_required': True, 'recommended_resampling': 'forward',",
+    "    'sample_data': [",
+    "        {'sample_id': 's1', 'group_id': 'g1', 'order_rank': 1},",
+    "        {'sample_id': 's2', 'group_id': 'g2', 'order_rank': 2},",
+    "    ],",
+    "})",
+    "expect_val_err(lambda: list(two_rank.iter_splits(n_splits=2)), 'distinct order_rank')",
+    "",
+    "# 2. Valid recurring-subject longitudinal panel (12 rows, 4 subjects x 3 timepoints)",
+    "panel_rows = []",
+    "for p in range(1, 5):",
+    "    for t in range(1, 4):",
+    "        panel_rows.append({",
+    "            'sample_id': f'S{(p-1)*3+t}',",
+    "            'group_id': f'subject:P{p}',",
+    "            'order_rank': t,",
+    "        })",
+    "panel = SplitSpec({",
+    "    'splitGraph_object': 'split_spec', 'schema_version': '0.3.0',",
+    "    'group_var': 'group_id', 'time_var': 'order_rank',",
+    "    'ordering_required': True, 'recommended_resampling': 'forward',",
+    "    'sample_data': panel_rows,",
+    "})",
+    "splits = list(panel.iter_splits(n_splits=2, purge_ranks=0))",
+    "assert splits == [([3, 9], [1, 7]), ([0, 1, 6, 7], [5, 11])]",
+    "",
+    "# 3. D10a: One-group panel that empties training",
+    "one_grp = SplitSpec({",
+    "    'splitGraph_object': 'split_spec', 'schema_version': '0.3.0',",
+    "    'group_var': 'group_id', 'time_var': 'order_rank',",
+    "    'ordering_required': True, 'recommended_resampling': 'forward',",
+    "    'sample_data': [",
+    "        {'sample_id': f's{i}', 'group_id': 'subject:p1', 'order_rank': i}",
+    "        for i in (1, 2, 3)",
+    "    ],",
+    "})",
+    "expect_val_err(lambda: list(one_grp.iter_splits(n_splits=2)), 'empty training set')",
+    "",
+    "# 4. D10b: Fallback empties test window on split 3 of 3; zero partial splits emitted",
+    "late_fail = SplitSpec({",
+    "    'splitGraph_object': 'split_spec', 'schema_version': '0.3.0',",
+    "    'group_var': 'group_id', 'time_var': 'order_rank',",
+    "    'ordering_required': True, 'recommended_resampling': 'forward',",
+    "    'sample_data': [",
+    "        {'sample_id': f's{i}', 'group_id': g, 'order_rank': r}",
+    "        for i, (g, r) in enumerate(zip(['subject:p1'] * 4 + ['subject:p2'] * 4, [1, 2, 3, 4] * 2))",
+    "    ],",
+    "})",
+    "emitted = []",
+    "def consume_late():",
+    "    for item in late_fail.iter_splits(n_splits=3):",
+    "        emitted.append(item)",
+    "expect_val_err(consume_late, 'Forward split 3/3')",
+    "assert emitted == [], f'Expected no partial splits, got {emitted}'",
+    "",
+    "# 5. D09: Invalid n_splits and purge_ranks (including booleans and negative values)",
+    "for bad_n in (1, 0, -2, True, False, 2.5, '2'):",
+    "    expect_val_err(lambda n=bad_n: list(panel.iter_splits(n_splits=n)), 'n_splits')",
+    "for bad_p in (-1, -0.5, True, False, float('inf'), float('nan'), '0'):",
+    "    expect_val_err(lambda p=bad_p: list(panel.iter_splits(n_splits=2, purge_ranks=p)), 'purge_ranks')",
+    "",
+    "# 6. Missing or unusable group/rank values",
+    "bad_rank = SplitSpec({",
+    "    'splitGraph_object': 'split_spec', 'schema_version': '0.3.0',",
+    "    'group_var': 'group_id', 'time_var': 'order_rank',",
+    "    'ordering_required': True, 'recommended_resampling': 'forward',",
+    "    'sample_data': [",
+    "        {'sample_id': 's1', 'group_id': 'g1', 'order_rank': True},",
+    "        {'sample_id': 's2', 'group_id': 'g2', 'order_rank': 2},",
+    "        {'sample_id': 's3', 'group_id': 'g3', 'order_rank': 3},",
+    "    ],",
+    "})",
+    "expect_val_err(lambda: list(bad_rank.iter_splits(n_splits=2)), 'order ranks')",
+    "",
+    "# 7. D11: Missing or malformed schema_version rejected; valid older 0.1.0 / 0.2.0 accepted",
+    "for bad_v in (None, 3, '', '0.3', 'v0.3.0'):",
+    "    payload = {'splitGraph_object': 'split_spec', 'group_var': 'group_id', 'sample_data': []}",
+    "    if bad_v is not None:",
+    "        payload['schema_version'] = bad_v",
+    "    expect_val_err(lambda p=payload: SplitSpec(p), 'schema_version')",
+    "expect_val_err(lambda: SplitSpec({'splitGraph_object': 'split_spec', 'schema_version': '1.0.0', 'group_var': 'group_id', 'sample_data': []}), 'major version')",
+    "for ok_v in ('0.1.0', '0.2.0', '0.3.0', '0.4.0'):",
+    "    s_ok = SplitSpec({'splitGraph_object': 'split_spec', 'schema_version': ok_v, 'group_var': 'group_id', 'sample_data': []})",
+    "    assert s_ok.schema_version == ok_v",
+    "print('PYTHON_CONTRACT_OK')"
+  ), py_script)
+
+  out <- system2(py, c("-B", shQuote(py_script)), stdout = TRUE, stderr = TRUE)
+  expect_identical(tail(out, 1L), "PYTHON_CONTRACT_OK")
+})
+
+test_that("Phase 2 (2.1 & 2.2): clinical timeline look-ahead/immortal-time and featureset provenance contamination rules", {
+  meta <- data.frame(
+    sample_id           = c("S1", "S2", "S3", "S4"),
+    subject_id          = c("P1", "P2", "P3", "P4"),
+    study_id            = c("ST1", "ST1", "ST2", "ST2"),
+    batch_id            = c("B1", "B1", "B2", "B2"),
+    featureset_id       = c("FS1", "FS1", "FS1", "FS2"),
+    featureset_study_id = c("ST1", "ST1", "ST1", "ST2"),
+    featureset_batch_id = c("B1", "B1", "B1", "B2"),
+    index_time          = c(10, 10, 10, 10),
+    collection_time     = c(8, 12, 9, 9),    # S2 postdates index_time (12 > 10)
+    outcome_time        = c(20, 20, 5, 20),  # S3 outcome precedes index_time (5 < 10)
+    stringsAsFactors    = FALSE
+  )
+
+  g <- graph_from_metadata(meta)
+  rep <- validate_graph(g)
+  codes <- rep$issues$code
+
+  expect_true("feature_postdates_index_time" %in% codes)
+  expect_true("outcome_precedes_index_time" %in% codes)
+  expect_true("cross_study_featureset_contamination" %in% codes)
+  expect_true("cross_batch_featureset_contamination" %in% codes)
+
+  # S2 is flagged for feature_postdates_index_time; S3 for outcome_precedes_index_time
+  post_row <- rep$issues[rep$issues$code == "feature_postdates_index_time", ]
+  expect_true("sample:S2" %in% post_row$node_ids[[1L]])
+  imm_row <- rep$issues[rep$issues$code == "outcome_precedes_index_time", ]
+  expect_true("sample:S3" %in% imm_row$node_ids[[1L]])
+
+  # Under study split (ST1 vs ST2), FS1 (generated from ST1, used by S3 in ST2) crosses folds -> severed = FALSE
+  con_study <- derive_split_constraints(g, mode = "study")
+  risks_study <- summarize_leakage_risks(g, constraint = con_study)$diagnostics
+  fs_study_risk <- risks_study[risks_study$category == "cross_study_featureset_contamination", ]
+  expect_false(fs_study_risk$severed[[1L]])
+  post_risk <- risks_study[risks_study$category == "feature_postdates_index_time", ]
+  expect_false(post_risk$severed[[1L]])
+
+  # Adversarial temporal checks: Date vs string scale consistency, same-day ISO-8601 T/Z timestamps,
+  # FeatureSet feature_window_end, and subject-scoped Outcome event_time
+  meta_iso <- data.frame(
+    sample_id          = c("E1", "E2", "E3"),
+    subject_id         = c("U1", "U2", "U3"),
+    study_id           = c("S1", "S1", "S1"),
+    featureset_id      = c("F_ok", "F_late", "F_ok"),
+    feature_window_end = c("2022-06-01T07:30:00Z", "2022-06-01T15:45:00Z", "2022-06-01T07:30:00Z"),
+    index_time         = c("2022-06-01T12:00:00Z", "2022-06-01T12:00:00Z", "2022-06-01T12:00:00Z"),
+    collection_time    = c("2022-05-20", "2022-06-01T09:00:00Z", "2022-06-01T08:00:00Z"),
+    outcome_id         = c("alive", "case", "early_event"),
+    event_time         = c("2022-07-01T00:00:00Z", "2022-07-01T00:00:00Z", "2022-06-01T10:00:00Z"),
+    stringsAsFactors   = FALSE
+  )
+  g_iso <- graph_from_metadata(meta_iso, outcome_scope = "subject")
+  rep_iso <- validate_graph(g_iso)
+  post_iso <- rep_iso$issues[rep_iso$issues$code == "feature_postdates_index_time", ]
+  expect_equal(nrow(post_iso), 1L)
+  expect_true("sample:E2" %in% post_iso$node_ids[[1L]])
+  expect_false("sample:E1" %in% post_iso$node_ids[[1L]])
+
+  imm_iso <- rep_iso$issues[rep_iso$issues$code == "outcome_precedes_index_time", ]
+  expect_equal(nrow(imm_iso), 1L)
+  expect_true("sample:E3" %in% imm_iso$node_ids[[1L]])
+
+  # Date object index_time vs earlier ISO string collection_time must NOT trigger false look-ahead
+  s_nodes <- create_nodes(
+    data.frame(
+      sample_id = "D1",
+      index_time = as.Date("2023-05-01"),
+      collection_time = "2023-01-15",
+      stringsAsFactors = FALSE
+    ),
+    type = "Sample", id_col = "sample_id"
+  )
+  g_date <- build_dependency_graph(nodes = list(s_nodes), edges = list(graph_edge_set()))
+  rep_date <- validate_graph(g_date)
+  expect_false("feature_postdates_index_time" %in% rep_date$issues$code)
+})
+
+test_that("SG-1: feature-set provenance flags only sources whose samples are in the data", {
+  mk <- function(fs_src, used_by, col = "study") {
+    meta <- data.frame(sample_id = paste0("S", 1:8), subject_id = paste0("P", 1:8),
+                       study_id = rep(c("A", "B"), each = 4), batch_id = rep(c("A", "B"), each = 4),
+                       featureset_id = NA_character_, featureset_study_id = NA_character_,
+                       featureset_batch_id = NA_character_, stringsAsFactors = FALSE)
+    use <- meta$study_id %in% used_by
+    meta$featureset_id[use] <- "sig1"
+    meta[[paste0("featureset_", col, "_id")]][use] <- fs_src
+    graph_from_metadata(meta)
+  }
+  codes <- function(g) unique(as.character(validate_graph(g)$issues$code))
+  for (col in c("study", "batch")) {
+    code <- sprintf("cross_%s_featureset_contamination", col)
+    expect_false(code %in% codes(mk("EXT", c("A", "B"), col)), label = paste(col, "external"))
+    expect_true(code %in% codes(mk("A", c("A", "B"), col)), label = paste(col, "A -> A+B"))
+    expect_false(code %in% codes(mk("A", "A", col)), label = paste(col, "A -> A"))
+    expect_false(code %in% codes(mk("A", "B", col)), label = paste(col, "A -> B only"))
+  }
+  # in-sample use is still caught by the older provenance rule
+  expect_true("shared_featureset_provenance" %in% codes(mk("A", "A")))
+
+  # never reported as severed: no split makes evaluated source samples independent
+  g <- mk("A", c("A", "B"))
+  for (m in c("subject", "study")) {
+    r <- summarize_leakage_risks(g, constraint = derive_split_constraints(g, mode = m))$diagnostics
+    expect_false(any(r$severed[r$category == "cross_study_featureset_contamination"]), label = m)
+  }
+})
+
+test_that("SG-2: min_cut reports an unreachable target and severs nothing pointless", {
+  g <- graph_from_metadata(data.frame(sample_id = paste0("S", 1:6), subject_id = "P1",
+                                      batch_id = paste0("B", 1:6)))
+  expect_warning(
+    con <- derive_split_constraints(g, mode = "composite", strategy = "min_cut",
+                                    via = c("subject", "batch"), k = 5),
+    class = "splitGraph_target_unreachable_warning")
+  expect_false(con$metadata$target_reached)
+  expect_length(con$metadata$severed_bridges, 0L)
+  expect_true(any(grepl("could not reach target k = 5", con$metadata$warnings)))
+})
+
+test_that("SG-2: min_cut still cuts bridges that only help together when the target is reachable", {
+  # Two subjects-groups linked by BOTH batch X and batch Y: neither cut alone
+  # splits them, both together do.
+  meta <- data.frame(sample_id = paste0("S", 1:8),
+                     subject_id = paste0("P", rep(1:4, each = 2)),
+                     batch_id = c("X", "Y", "X", "Y", "X", "Y", "X", "Y"))
+  g <- graph_from_metadata(meta)
+  con <- expect_no_warning(derive_split_constraints(g, mode = "composite", strategy = "min_cut",
+                                                    via = c("subject", "batch"), k = 4))
+  expect_true(con$metadata$target_reached)
+  expect_equal(length(unique(con$sample_map$group_id)), 4L)
+})
+
+test_that("SG-4: a min_cut spec does not declare severed axes as block_vars", {
+  meta <- data.frame(sample_id = paste0("S", 1:40),
+                     subject_id = paste0("P", rep(1:20, each = 2)),
+                     batch_id = paste0("B", rep(1:4, 10)))
+  g <- graph_from_metadata(meta)
+  con <- derive_split_constraints(g, mode = "composite", strategy = "min_cut",
+                                  via = c("subject", "batch"), k = 5)
+  expect_true(length(con$metadata$severed_bridges) > 0L)
+  spec <- as_split_spec(con, graph = g)
+  expect_false("batch_group" %in% spec$block_vars)
+  expect_true(any(grepl("accepted leakage risk", spec$metadata$warnings)))
+  # a strict composite spec still declares the batch axis
+  spec_strict <- as_split_spec(derive_split_constraints(g, mode = "composite", strategy = "strict",
+                                                        via = c("subject", "batch")), graph = g)
+  expect_true("batch_group" %in% spec_strict$block_vars)
+})
+
+test_that("graph_from_metadata builds FeatureSets with mixed in-data and external sources", {
+  for (col in c("study", "batch")) {
+    m <- data.frame(sample_id = paste0("S", 1:4), x = c("A", "A", "B", "B"),
+                    featureset_id = "sig", src = c("A", "A", "EXT", "EXT"), stringsAsFactors = FALSE)
+    names(m)[names(m) == "x"] <- paste0(col, "_id")
+    names(m)[names(m) == "src"] <- paste0("featureset_", col, "_id")
+    g <- expect_no_error(graph_from_metadata(m))
+    ids <- g$nodes$data$node_id
+    expect_equal(sum(ids == paste0(col, ":A")), 1L)
+    expect_equal(sum(ids == paste0(col, ":EXT")), 1L)
+  }
+})
+
+test_that("min_cut add-back: real bridges cut, via order irrelevant, best grouping when unreachable", {
+  # two clusters held by batch and study, joined only by two sites
+  meta <- data.frame(sample_id = paste0("S", 1:12), subject_id = paste0("P", 1:12),
+                     batch_id = rep(c("B1", "B4"), each = 6), study_id = rep(c("SA", "SC"), each = 6),
+                     site_id = c(rep("H1", 5), "H2", "H2", rep("H5", 5)))
+  meta$site_id[c(6, 7)] <- c("H2", "H2")
+  g <- graph_from_metadata(meta)
+  con <- derive_split_constraints(g, mode = "composite", strategy = "min_cut",
+                                  via = c("subject", "batch", "study", "site"), k = 2)
+  expect_equal(con$metadata$severed_bridges, "site:H2")
+  expect_equal(sort(as.integer(table(con$sample_map$group_id))), c(6L, 6L))
+  # via order does not create must-links
+  m2 <- data.frame(sample_id = paste0("S", 1:8), subject_id = paste0("P", 1:8),
+                   batch_id = rep(c("X", "Y"), each = 4))
+  g2 <- graph_from_metadata(m2)
+  a <- derive_split_constraints(g2, mode = "composite", strategy = "min_cut", via = c("batch", "subject"), k = 2)
+  b <- derive_split_constraints(g2, mode = "composite", strategy = "min_cut", via = c("subject", "batch"), k = 2)
+  expect_equal(a$sample_map$group_id, b$sample_map$group_id)
+  # unreachable: best grouping the must-links allow, not one group
+  m3 <- data.frame(sample_id = paste0("S", 1:8), subject_id = paste0("P", rep(1:4, each = 2)),
+                   batch_id = rep(c("X", "Y"), 4))
+  g3 <- graph_from_metadata(m3)
+  expect_warning(c3 <- derive_split_constraints(g3, mode = "composite", strategy = "min_cut",
+                                                via = c("subject", "batch"), k = 5),
+                 class = "splitGraph_target_unreachable_warning")
+  expect_equal(length(unique(c3$sample_map$group_id)), 4L)
+  expect_false(c3$metadata$target_reached)
+})
+
+test_that("k-feasibility rejects one dominant group", {
+  expect_false(.depgraph_k_feasible(c(99, 1), 100, 2))
+  expect_true(.depgraph_k_feasible(c(60, 40), 100, 2))
+  expect_false(.depgraph_k_feasible(c(50, rep(5, 10)), 100, 10))
+})
+
+test_that("SG-13: heavy_batch_reuse severed reflects observed min_cut grouping", {
+  # B1 holds 4 of 6 samples; min_cut severs B1 to reach k = 3, splitting B1's samples.
+  meta <- data.frame(
+    sample_id  = c("S1", "S2", "S3", "S4", "S5", "S6"),
+    subject_id = c("P1", "P1", "P2", "P2", "P3", "P3"),
+    batch_id   = c("B1", "B1", "B1", "B1", "B2", "B2"),
+    stringsAsFactors = FALSE
+  )
+  g <- graph_from_metadata(meta)
+  con <- derive_split_constraints(g, mode = "composite", strategy = "min_cut",
+                                  via = c("subject", "batch"), k = 3)
+  expect_identical(con$metadata$severed_bridges, "batch:B1")
+  diag <- summarize_leakage_risks(g, constraint = con)$diagnostics
+  hbr <- diag[diag$category == "heavy_batch_reuse", , drop = FALSE]
+  expect_equal(nrow(hbr), 1L)
+  expect_identical(hbr$severed, FALSE)
+
+  # compare_split_constraints agrees with summarize_leakage_risks
+  cmp <- as.data.frame(compare_split_constraints(
+    g, modes = c("subject", "composite"), k = 3,
+    composite_via = c("subject", "batch"),
+    composite_strategies = c("strict", "min_cut")
+  ))
+  mc_row <- cmp[cmp$mode == "composite" & cmp$strategy == "min_cut", , drop = FALSE]
+  subj_row <- cmp[cmp$mode == "subject", , drop = FALSE]
+  expect_identical(mc_row$n_risks_remaining, subj_row$n_risks_remaining)
+
+  # Benign/intact case: when min_cut keeps the heavily reused batch intact, severed = TRUE.
+  meta_kept <- data.frame(
+    sample_id  = c("S1", "S2", "S3", "S4", "S5", "S6"),
+    subject_id = c("P1", "P2", "P3", "P4", "P5", "P6"),
+    batch_id   = c("B1", "B1", "B1", "B2", "B3", "B4"),
+    stringsAsFactors = FALSE
+  )
+  g_kept <- graph_from_metadata(meta_kept)
+  con_kept <- derive_split_constraints(g_kept, mode = "composite", strategy = "min_cut",
+                                       via = c("subject", "batch"), k = 2)
+  expect_length(con_kept$metadata$severed_bridges, 0L)
+  diag_kept <- summarize_leakage_risks(g_kept, constraint = con_kept)$diagnostics
+  expect_identical(diag_kept$severed[diag_kept$category == "heavy_batch_reuse"], TRUE)
+})
+
+test_that("SG-14: pooled multi-source FeatureSet triggers cross-study and cross-batch contamination", {
+  # Pooled across ST1 and ST2, used by both -> must flag
+  meta_pool <- data.frame(
+    sample_id           = c("S1", "S2", "S3", "S4"),
+    study_id            = c("ST1", "ST1", "ST2", "ST2"),
+    featureset_id       = c("FS1", "FS1", "FS1", "FS1"),
+    featureset_study_id = c("ST1", "ST1", "ST2", "ST2"),
+    stringsAsFactors    = FALSE
+  )
+  expect_true("cross_study_featureset_contamination" %in%
+                validate_graph(graph_from_metadata(meta_pool))$issues$code)
+
+  # Pooled across B1 and B2, used by both -> must flag
+  meta_bpool <- data.frame(
+    sample_id           = c("S1", "S2", "S3", "S4"),
+    batch_id            = c("B1", "B1", "B2", "B2"),
+    featureset_id       = c("FS1", "FS1", "FS1", "FS1"),
+    featureset_batch_id = c("B1", "B1", "B2", "B2"),
+    stringsAsFactors    = FALSE
+  )
+  expect_true("cross_batch_featureset_contamination" %in%
+                validate_graph(graph_from_metadata(meta_bpool))$issues$code)
+
+  # Benign look-alike: pooled across two external studies EXT1 + EXT2 -> must not flag
+  meta_ext2 <- data.frame(
+    sample_id           = c("S1", "S2", "S3", "S4"),
+    study_id            = c("ST1", "ST1", "ST2", "ST2"),
+    featureset_id       = c("FS1", "FS1", "FS1", "FS1"),
+    featureset_study_id = c("EXT1", "EXT1", "EXT2", "EXT2"),
+    stringsAsFactors    = FALSE
+  )
+  expect_false("cross_study_featureset_contamination" %in%
+                 validate_graph(graph_from_metadata(meta_ext2))$issues$code)
+
+  # Mixed in-data + external source used only on the in-data study -> in-sample, not cross-study
+  meta_in_ext <- data.frame(
+    sample_id           = c("S1", "S2", "S3", "S4"),
+    study_id            = c("ST1", "ST1", "ST2", "ST2"),
+    featureset_id       = c("FS1", "FS1", NA, NA),
+    featureset_study_id = c("ST1", "EXT1", NA, NA),
+    stringsAsFactors    = FALSE
+  )
+  expect_false("cross_study_featureset_contamination" %in%
+                 validate_graph(graph_from_metadata(meta_in_ext))$issues$code)
+})
+
+test_that("SG-16: min_cut spec omits severed axes from block_vars on unprefixed graphs", {
+  meta <- data.frame(
+    sample_id  = c("S1", "S2", "S3", "S4", "S5", "S6"),
+    subject_id = c("P1", "P1", "P2", "P2", "P3", "P3"),
+    batch_id   = c("B1", "B1", "B1", "B1", "B2", "B2"),
+    stringsAsFactors = FALSE
+  )
+  g <- build_dependency_graph(
+    nodes = list(
+      create_nodes(meta, "Sample", "sample_id", prefix = FALSE),
+      create_nodes(meta, "Subject", "subject_id", prefix = FALSE),
+      create_nodes(meta, "Batch", "batch_id", prefix = FALSE)
+    ),
+    edges = list(
+      create_edges(meta, "sample_id", "subject_id", "Sample", "Subject",
+                   "sample_belongs_to_subject", from_prefix = FALSE, to_prefix = FALSE),
+      create_edges(meta, "sample_id", "batch_id", "Sample", "Batch",
+                   "sample_processed_in_batch", from_prefix = FALSE, to_prefix = FALSE)
+    )
+  )
+  con <- derive_split_constraints(g, mode = "composite", strategy = "min_cut",
+                                  via = c("subject", "batch"), k = 3)
+  expect_identical(con$metadata$severed_bridges, "B1")
+  spec <- as_split_spec(con, graph = g)
+  expect_false("batch_group" %in% spec$block_vars)
+  expect_true(any(grepl("accepted leakage risk", spec$metadata$warnings)))
+})
+
+test_that("SG-18: compare_split_constraints(samples = ...) evaluates min_cut heavy_batch_reuse on the subset", {
+  meta <- data.frame(
+    sample_id  = c("S1", "S2", "S3", "S4", "S5", "S6"),
+    subject_id = c("P1", "P2", "P3", "P4", "P5", "P6"),
+    batch_id   = c("B1", "B1", "B1", "B1", "B2", "B2"),
+    stringsAsFactors = FALSE
+  )
+  g <- graph_from_metadata(meta)
+  sub_s <- c("S1", "S2", "S3", "S5", "S6")
+  cmp <- as.data.frame(compare_split_constraints(
+    g,
+    modes = c("batch", "composite"),
+    composite_via = c("subject", "batch"),
+    composite_strategies = c("strict", "min_cut"),
+    samples = sub_s,
+    k = 2L
+  ))
+  strict_row <- cmp[cmp$mode == "composite" & cmp$strategy == "strict", , drop = FALSE]
+  mc_row <- cmp[cmp$mode == "composite" & cmp$strategy == "min_cut", , drop = FALSE]
+  expect_identical(mc_row$n_risks_severed, strict_row$n_risks_severed)
+  expect_identical(mc_row$n_risks_remaining, strict_row$n_risks_remaining)
+  expect_identical(mc_row$n_risks_severed, 1L)
+})
+
+test_that("SG-19: k-feasibility is FALSE for n = 0 and min_cut handles a 0-sample graph", {
+  expect_false(.depgraph_k_feasible(integer(0), 0L, 5L))
+  g0 <- dependency_graph(graph_node_set(), graph_edge_set())
+  expect_warning(
+    con0 <- derive_split_constraints(g0, mode = "composite", strategy = "min_cut", k = 5L),
+    class = "splitGraph_target_unreachable_warning"
+  )
+  expect_false(con0$metadata$target_reached)
+  expect_equal(nrow(con0$sample_map), 0L)
+})
+
+test_that("SG-20: non-finite or non-integer k is rejected by min_cut and compare_split_constraints", {
+  meta <- data.frame(
+    sample_id  = c("S1", "S2", "S3", "S4"),
+    subject_id = c("P1", "P2", "P3", "P4"),
+    batch_id   = c("B1", "B1", "B2", "B2"),
+    stringsAsFactors = FALSE
+  )
+  g <- graph_from_metadata(meta)
+  for (bad_k in list(Inf, -Inf, NaN, 2.5, 1e12)) {
+    expect_error(
+      derive_split_constraints(g, mode = "composite", strategy = "min_cut",
+                               via = c("subject", "batch"), k = bad_k),
+      class = "splitgraph_error"
+    )
+    expect_error(
+      compare_split_constraints(g, k = bad_k),
+      class = "splitgraph_error"
+    )
+  }
 })

@@ -3,7 +3,7 @@
 # Build a helpful error message when edge endpoints don't match any node ID.
 # If the missing references look like prefixed IDs (e.g. "sample:S1") while
 # the node table uses unprefixed keys (or vice versa), point at that as a
-# likely cause — this is the most common first-time-user mistake.
+# likely cause -- this is the most common first-time-user mistake.
 .depgraph_missing_reference_message <- function(missing, node_ids, side) {
   base_msg <- paste0(
     "Edge data contains `", side, "` references that are not present in the node table: ",
@@ -54,6 +54,50 @@
 #'
 #' Combine canonical node and edge tables into a typed dependency graph and
 #' perform structural, semantic, and graph-local leakage-aware validation.
+#'
+#' @section Timeline rules:
+#' Two leakage-level rules compare timestamps against a sample's index date
+#' (\code{index_time}, t0). They check the order of recorded timestamps and
+#' nothing else.
+#' \describe{
+#'   \item{\code{feature_postdates_index_time}}{This is look-ahead leakage
+#'     when a sample's predictor data were recorded after its index date: the
+#'     sample's \code{collection_time}, or the \code{feature_window_end}
+#'     (else \code{collection_time}) of a FeatureSet it uses, is later than
+#'     its \code{index_time}. Equal timestamps are allowed.}
+#'   \item{\code{outcome_precedes_index_time}}{Flagged when a sample's outcome
+#'     timestamp is earlier than its \code{index_time}, its
+#'     \code{collection_time} or a linked FeatureSet's window end (else its
+#'     \code{collection_time}). The outcome
+#'     timestamp is the sample's own \code{outcome_time} (else
+#'     \code{event_time}), or else that of the Outcome nodes it reaches through
+#'     \code{sample_has_outcome} or its subject's \code{subject_has_outcome}.
+#'     This is a timestamp ordering check. It does not detect immortal-time
+#'     bias (how follow-up time before treatment or exposure is classified)
+#'     or reverse causation; those need the study design, not the graph.}
+#' }
+#' \code{feature_window_end} lives on the FeatureSet node, so it is one value
+#' for every sample using that FeatureSet. It cannot express per-patient
+#' windows relative to each patient's own index date; record those as the
+#' sample's \code{collection_time}.
+#'
+#' Timestamps are compared only in the same unit. A \code{Date} or
+#' \code{"YYYY-MM-DD"} string is a date; a \code{POSIXct} or
+#' \code{"YYYY-MM-DD HH:MM[:SS]"} string (\code{T} or space, optional
+#' \code{Z} or \code{+HH:MM} offset; a string without an offset is taken as
+#' UTC) is a date-time; a \code{difftime} or ISO 8601 duration string using
+#' fixed-length units (\code{W}, \code{D}, \code{H}, \code{M}, \code{S}, e.g.
+#' \code{"P1DT2H"}, \code{"-PT30M"}) is a time span, compared in seconds with
+#' other time spans only; a number or numeric string is a bare
+#' number of unknown unit. Two bare numbers are assumed to be in the same unit.
+#' Missing and non-finite values are skipped. A bare number is never compared with a date or
+#' date-time, and text that is none of these is never compared: such pairs are
+#' reported once per attribute pair as \code{temporal_unit_mismatch} (warning)
+#' and the rule is not checked for them. A date and a date-time are compared
+#' by calendar day (as written, in the value's own time zone) and reported as
+#' \code{temporal_resolution_mismatch} (advisory). \code{summarize_leakage_risks()}
+#' reports both rules as not severed by any split, and the two unit codes with
+#' \code{severed = NA}.
 #'
 #' @param nodes,edges Lists of \code{graph_node_set} and \code{graph_edge_set}
 #'   objects.

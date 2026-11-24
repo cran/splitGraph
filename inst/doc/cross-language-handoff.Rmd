@@ -122,7 +122,7 @@ from splitspec import load_split_spec
 
 spec = load_split_spec("split_spec.json")
 
-spec.schema_version        # "0.3.0"
+spec.schema_version        # "0.4.0"
 spec.constraint_mode       # "subject"
 spec.recommended_resampling  # "grouped_cv"
 spec.stratum_var           # "stratum"

@@ -131,7 +131,19 @@
   )
   row.names(out) <- NULL
   attr(out, "multi_assignment_samples") <- multi_assignment_samples
+  attr(out, "target_keys") <- node_data$node_key[node_data$node_type == target_type]
   out
+}
+
+.depgraph_unlinked_tag <- function(existing_keys) {
+  keys <- as.character(stats::na.omit(existing_keys))
+  tag <- "unlinked"
+  idx <- 1L
+  while (any(startsWith(keys, paste0(tag, ":")) | startsWith(keys, paste0(tag, "_")) | keys == tag)) {
+    tag <- paste0("unlinked_", idx)
+    idx <- idx + 1L
+  }
+  tag
 }
 
 .depgraph_warning_if_missing <- function(assignments, mode) {
@@ -152,6 +164,10 @@
 
   linked <- !is.na(assignments$linked_node_id) & nzchar(assignments$linked_node_id)
   linked[is.na(linked)] <- FALSE
+  unlinked_tag <- .depgraph_unlinked_tag(c(
+    assignments$linked_key,
+    attr(assignments, "target_keys", exact = TRUE)
+  ))
 
   out <- data.frame(
     sample_id = assignments$sample_id,
@@ -159,10 +175,10 @@
     group_id = ifelse(
       linked,
       paste0(mode, ":", assignments$linked_key),
-      paste0(mode, ":unlinked:", assignments$sample_id)
+      paste0(mode, ":", unlinked_tag, ":", assignments$sample_id)
     ),
     constraint_type = mode,
-    group_label = ifelse(linked, assignments$linked_key, paste0("unlinked_", assignments$sample_id)),
+    group_label = ifelse(linked, assignments$linked_key, paste0(unlinked_tag, "_", assignments$sample_id)),
     explanation = ifelse(
       linked,
       paste0(prefix, " through ", assignments$edge_type, " -> ", assignments$linked_key, "."),
@@ -180,10 +196,8 @@
     time_nodes$attrs,
     function(x) {
       value <- .depgraph_extract_attr(x, "time_index")
-      if (length(value) == 0L || is.na(value)) {
-        return(NA_real_)
-      }
-      suppressWarnings(as.numeric(as.character(value)))
+      parsed <- .depgraph_parse_time_index(value)
+      if (length(parsed) == 0L) NA_real_ else parsed[[1L]]
     },
     FUN.VALUE = numeric(1)
   )
@@ -228,8 +242,7 @@
 
   if (all(!is.na(raw_time_index))) {
     unique_order <- sort(unique(raw_time_index))
-    rank_map <- stats::setNames(seq_along(unique_order), as.character(unique_order))
-    order_rank <- as.integer(rank_map[as.character(raw_time_index)])
+    order_rank <- as.integer(match(raw_time_index, unique_order))
     names(order_rank) <- time_node_ids
     return(list(
       source = "time_index",
@@ -281,8 +294,7 @@
 
   if (any(!is.na(raw_time_index))) {
     available <- sort(unique(raw_time_index[!is.na(raw_time_index)]))
-    rank_map <- stats::setNames(seq_along(available), as.character(available))
-    order_rank[!is.na(raw_time_index)] <- as.integer(rank_map[as.character(raw_time_index[!is.na(raw_time_index)])])
+    order_rank[!is.na(raw_time_index)] <- as.integer(match(raw_time_index[!is.na(raw_time_index)], available))
     warnings <- c(warnings, "Time ordering is only partially available because some timepoints are missing `time_index` values.")
   } else if (nrow(precedence_edges) == 0L) {
     warnings <- c(warnings, "Time ordering is unavailable because neither `time_index` metadata nor usable `timepoint_precedes` edges were found.")
@@ -680,16 +692,20 @@
   time_info <- if ("time" %in% priority) .derive_time_constraints(graph, samples = sample_ids)$sample_map else NULL
   time_idx <- if (is.null(time_info)) rep(NA_integer_, n) else match(sample_ids, time_info$sample_node_id)
 
+  unlinked_tag <- .depgraph_unlinked_tag(c(
+    chosen_key,
+    graph$nodes$data$node_key[graph$nodes$data$node_type != "Sample"]
+  ))
   sample_map <- data.frame(
     sample_id = sample_nodes$node_key,
     sample_node_id = sample_ids,
     group_id = ifelse(
       has_mode,
       paste0("composite_", chosen_mode, ":", chosen_key),
-      paste0("composite:unlinked:", sample_nodes$node_key)
+      paste0("composite:", unlinked_tag, ":", sample_nodes$node_key)
     ),
     constraint_type = ifelse(has_mode, chosen_mode, "unlinked"),
-    group_label = ifelse(has_mode, chosen_key, paste0("unlinked_", sample_nodes$node_key)),
+    group_label = ifelse(has_mode, chosen_key, paste0(unlinked_tag, "_", sample_nodes$node_key)),
     explanation = ifelse(
       has_mode,
       paste0(
@@ -730,6 +746,215 @@
       priority = priority,
       n_groups = length(unique(sample_map$group_id)),
       n_samples = nrow(sample_map),
+      warnings = warnings
+    )
+  )
+}
+
+# k-fold feasibility of a grouping: at least k groups, and no group larger than
+# 1.5 * n / k samples, so groups can be packed into k roughly balanced folds.
+.depgraph_k_feasible_cap <- function(n, k) max(1L, as.integer(ceiling(1.5 * n / k)))
+.depgraph_k_feasible <- function(sizes, n, k) {
+  if (n == 0L || length(sizes) == 0L) return(FALSE)
+  isTRUE(length(sizes) >= k && max(sizes) <= .depgraph_k_feasible_cap(n, k))
+}
+
+.derive_composite_min_cut_constraints <- function(graph, samples = NULL, via = NULL,
+                                                  min_weight = NULL, max_distance = NULL,
+                                                  k = 2L) {
+  if (is.null(k)) k <- 2L
+  .depgraph_assert(
+    is.numeric(k) && length(k) == 1L && is.finite(k) && k >= 2 &&
+      k <= .Machine$integer.max && k == trunc(k),
+    "`k` must be a single finite integer >= 2."
+  )
+  target_k <- as.integer(k)
+
+  via_modes <- .depgraph_normalize_via_modes(via)
+  via_types <- .depgraph_via_labels(via_modes)
+  edge_types <- vapply(via_modes, .depgraph_mode_relation, character(1), USE.NAMES = FALSE)
+
+  sample_nodes <- .depgraph_constraint_samples(graph, samples)
+  keep_ids <- sample_nodes$node_id
+  n <- length(keep_ids)
+
+  # Separate hard identity must-links (subject, relatedness) from relaxable
+  # secondary relations (batch, study, site, region, platform, assay, time, spatial).
+  hard_modes <- intersect(via_modes, c("subject", "relatedness"))
+  soft_modes <- setdiff(via_modes, hard_modes)
+
+  .collect_mode_edges <- function(modes_subset) {
+    if (length(modes_subset) == 0L) {
+      return(data.frame(from = character(), to = character(), stringsAsFactors = FALSE))
+    }
+    dir_m <- modes_subset[!.depgraph_is_pairwise_mode(modes_subset)]
+    pw_m <- modes_subset[.depgraph_is_pairwise_mode(modes_subset)]
+    ed <- if (length(dir_m) > 0L) {
+      .depgraph_dependency_edges(graph, keep_ids, unname(.depgraph_constraint_edge_map[dir_m]))[, c("from", "to"), drop = FALSE]
+    } else {
+      data.frame(from = character(), to = character(), stringsAsFactors = FALSE)
+    }
+    for (pm in pw_m) {
+      ed <- rbind(
+        ed,
+        .depgraph_pairwise_component_edges(graph, pm, keep_ids, min_weight = min_weight, max_distance = max_distance)
+      )
+    }
+    ed
+  }
+
+  hard_edges <- .collect_mode_edges(hard_modes)
+  cur_soft <- .collect_mode_edges(soft_modes)
+
+  .is_k_feasible <- function(sizes) .depgraph_k_feasible(sizes, n, target_k)
+
+  # Units are the components of the hard must-links; they are never split.
+  # Each soft "entity" links units: a dependency node (batch:B1, study:S2, ...)
+  # through its samples, or a single sample--sample pairwise edge.
+  hard_comps <- .depgraph_sample_components(keep_ids, hard_edges)
+  unit_of    <- stats::setNames(as.integer(hard_comps$membership), keep_ids)
+  unit_size  <- tabulate(hard_comps$membership)   # per component (size is per sample)
+  n_units    <- length(unit_size)
+
+  ent_ids <- character()
+  ent_units <- list()
+  ent_n <- integer()
+  if (nrow(cur_soft) > 0L) {
+    s_from <- cur_soft$from %in% keep_ids
+    s_to   <- cur_soft$to %in% keep_ids
+    se <- xor(s_from, s_to)                       # sample -- entity node
+    if (any(se)) {
+      samp <- ifelse(s_from[se], cur_soft$from[se], cur_soft$to[se])
+      ent  <- ifelse(s_from[se], cur_soft$to[se], cur_soft$from[se])
+      by_ent <- split(samp, ent)
+      ent_ids   <- names(by_ent)
+      ent_units <- lapply(by_ent, function(s) unique(unit_of[s]))
+      ent_n     <- vapply(by_ent, function(s) length(unique(s)), integer(1L))
+    }
+    ss <- s_from & s_to                           # sample -- sample pairwise edge
+    if (any(ss)) {
+      ent_ids   <- c(ent_ids, paste0(cur_soft$from[ss], "--", cur_soft$to[ss]))
+      ent_units <- c(ent_units, Map(function(a, b) unique(c(unit_of[[a]], unit_of[[b]])),
+                                    cur_soft$from[ss], cur_soft$to[ss], USE.NAMES = FALSE))
+      ent_n     <- c(ent_n, rep(2L, sum(ss)))
+    }
+  }
+
+  # Add-back: start from the hard-only grouping and keep soft entities,
+  # strongest (most samples linked) first, while the grouping stays feasible.
+  # Entities that link no two units are always kept. If the target is not
+  # reachable even with the hard must-links alone, keep only entities that do
+  # not merge units, i.e. return the best grouping the must-links allow.
+  reachable <- .is_k_feasible(unit_size)
+  cap <- .depgraph_k_feasible_cap(n, target_k)
+  parent <- seq_len(n_units)
+  csize  <- unit_size
+  n_grp  <- n_units
+  cur_max <- if (n_units) max(unit_size) else 0L
+  find <- function(i) {
+    while (parent[i] != i) {
+      parent[i] <<- parent[parent[i]]
+      i <- parent[i]
+    }
+    i
+  }
+  severed_bridges <- character()
+  ord <- order(-ent_n, ent_ids)
+  for (e in ord) {
+    roots <- unique(vapply(ent_units[[e]], find, integer(1L)))
+    if (length(roots) <= 1L) next
+    merged <- sum(csize[roots])
+    new_grp <- n_grp - (length(roots) - 1L)
+    ok <- reachable && new_grp >= target_k && max(cur_max, merged) <= cap
+    if (!ok) {
+      severed_bridges <- c(severed_bridges, ent_ids[[e]])
+      next
+    }
+    r0 <- roots[1L]
+    for (r in roots[-1L]) parent[r] <- r0
+    csize[r0] <- merged
+    n_grp <- new_grp
+    cur_max <- max(cur_max, merged)
+  }
+  severed_bridges <- sort(severed_bridges)
+
+  # Final grouping from the kept edges (same numbering as other strategies).
+  keep_edge <- rep(TRUE, nrow(cur_soft))
+  if (length(severed_bridges) && nrow(cur_soft) > 0L) {
+    lbl <- paste0(cur_soft$from, "--", cur_soft$to)
+    keep_edge <- !(cur_soft$from %in% severed_bridges | cur_soft$to %in% severed_bridges |
+                     lbl %in% severed_bridges)
+  }
+  cur_soft  <- cur_soft[keep_edge, , drop = FALSE]
+  cur_comps <- .depgraph_sample_components(keep_ids, rbind(hard_edges, cur_soft))
+  n_comp_of <- function(cm) length(unique(cm$membership))
+  max_sz_of <- function(cm) if (length(cm$size) > 0L) max(cm$size) else 0L
+
+  component_id <- if (n > 0L) paste0("component_", cur_comps$membership) else character()
+  bridge_note <- if (length(severed_bridges) > 0L) {
+    paste0(" Severed bridge(s): ", paste(severed_bridges, collapse = ", "), ".")
+  } else {
+    ""
+  }
+  expl_str <- paste0(
+    "Min-cut composite grouping over: ",
+    paste(via_types, collapse = ", "),
+    ".", bridge_note
+  )
+  sample_map <- data.frame(
+    sample_id = sample_nodes$node_key,
+    sample_node_id = keep_ids,
+    group_id = component_id,
+    constraint_type = rep("composite_min_cut", n),
+    group_label = component_id,
+    explanation = rep(expl_str, n),
+    stringsAsFactors = FALSE
+  )
+  row.names(sample_map) <- NULL
+
+  warnings <- character()
+  if (length(severed_bridges) > 0L) {
+    warnings <- c(warnings, sprintf(
+      "Severed %d bridging dependency node(s)/edge(s) (%s) while targeting k = %d.",
+      length(severed_bridges), paste(severed_bridges, collapse = ", "), target_k
+    ))
+  }
+  target_reached <- .is_k_feasible(tabulate(cur_comps$membership))
+  if (!target_reached) {
+    msg <- sprintf(paste0(
+      "min_cut could not reach target k = %d (at least %d groups, none larger than %d samples): ",
+      "the hard must-links (%s) alone give %d group(s), the largest holding %d of %d samples. ",
+      "Returned the best grouping they allow%s."),
+      target_k, target_k, cap,
+      if (length(hard_modes)) paste(hard_modes, collapse = ", ") else "none",
+      n_comp_of(cur_comps), max_sz_of(cur_comps), n,
+      if (length(severed_bridges)) "" else "; no bridges were severed")
+    warnings <- c(warnings, msg)
+    warning(structure(class = c("splitGraph_target_unreachable_warning", "warning", "condition"),
+                      list(message = msg, call = NULL)))
+  }
+
+  split_constraint(
+    strategy = "min_cut",
+    sample_map = sample_map,
+    recommended_downstream_args = list(
+      group_var = "group_id",
+      block_var = NULL,
+      time_var = NULL,
+      ordering_required = FALSE
+    ),
+    metadata = list(
+      mode = "composite",
+      strategy = "min_cut",
+      relations_used = edge_types,
+      via = via_types,
+      target_k = target_k,
+      target_reached = target_reached,
+      severed_bridges = severed_bridges,
+      n_bridges_severed = length(severed_bridges),
+      n_groups = length(unique(sample_map$group_id)),
+      n_samples = nrow(sample_map),
+      n_dependency_edges = nrow(hard_edges) + nrow(cur_soft),
       warnings = warnings
     )
   )
@@ -803,6 +1028,21 @@
 #'   sample by the highest-priority available dependency source.
 #'   Lower-priority available dependencies are retained in the explanation
 #'   field.}
+#'
+#'   \item{\code{mode = "composite"}, \code{strategy = "min_cut"}}{Keeps the
+#'   hard sample-identity must-links (\code{"subject"} and \code{"relatedness"},
+#'   when in \code{via}) as units that are never split; every other relation
+#'   in \code{via} is relaxable, whatever its position. Starting from the
+#'   must-link grouping, it adds back secondary dependency entities (a batch,
+#'   study, site, ... node, or a single spatial/pairwise edge), most samples
+#'   linked first, as long as the grouping stays \code{k}-feasible: at least
+#'   \code{k} groups and none larger than \code{1.5 * n / k} samples. Entities
+#'   that could not be added back are severed and listed in
+#'   \code{metadata$severed_bridges}; \code{metadata$target_reached} records
+#'   whether \code{k} was reached. If the must-links alone cannot reach
+#'   \code{k}, it returns the best grouping they allow (severing only entities
+#'   that merge must-link units) with a
+#'   \code{splitGraph_target_unreachable_warning}.}
 #' }
 #'
 #' The returned \code{split_constraint$sample_map} always contains
@@ -846,6 +1086,10 @@
 #' @param max_distance Optional numeric maximum distance threshold applied to
 #'   \code{sample_adjacent_to} edges when \code{mode = "spatial"} or
 #'   \code{mode = "composite"}.
+#' @param k Target number of cross-validation folds (integer \code{>= 2},
+#'   default \code{2L}) used when \code{mode = "composite"} and
+#'   \code{strategy = "min_cut"} to determine when to stop severing secondary
+#'   bridge entities.
 #' @param include_warnings Whether to retain human-readable warnings in the
 #'   returned metadata.
 #' @param x A \code{split_constraint}.
@@ -868,20 +1112,21 @@ derive_split_constraints <- function(graph,
                                      mode = c("subject", "batch", "study", "time", "site", "region",
                                               "platform", "assay", "relatedness", "spatial", "composite"),
                                      samples = NULL,
-                                     strategy = c("strict", "rule_based"),
+                                     strategy = c("strict", "rule_based", "min_cut"),
                                      via = NULL,
                                      priority = NULL,
                                      time_ordering = FALSE,
                                      min_weight = NULL,
                                      max_distance = NULL,
+                                     k = 2L,
                                      include_warnings = TRUE) {
   .depgraph_assert(inherits(graph, "dependency_graph"), "`graph` must be a `dependency_graph`.")
   mode <- .depgraph_normalize_constraint_mode(
     .depgraph_match_arg(mode, .depgraph_constraint_modes, "mode")
   )
-  strategy <- .depgraph_match_arg(strategy, c("strict", "rule_based"), "strategy")
+  strategy <- .depgraph_match_arg(strategy, c("strict", "rule_based", "min_cut"), "strategy")
 
-  if (isTRUE(time_ordering) && identical(mode, "composite") && identical(strategy, "strict")) {
+  if (isTRUE(time_ordering) && identical(mode, "composite") && strategy %in% c("strict", "min_cut")) {
     norm_via <- .depgraph_normalize_via_modes(via)
     non_time_via <- setdiff(norm_via, "time")
     if (length(non_time_via) > 0L) {
@@ -901,11 +1146,16 @@ derive_split_constraints <- function(graph,
     assay = .derive_assay_constraints(graph, samples = samples),
     relatedness = .derive_pairwise_constraints(graph, "relatedness", samples = samples, min_weight = min_weight),
     spatial = .derive_pairwise_constraints(graph, "spatial", samples = samples, max_distance = max_distance),
-    composite = if (identical(strategy, "strict")) {
-      .derive_composite_strict_constraints(graph, samples = samples, via = via, min_weight = min_weight, max_distance = max_distance)
-    } else {
-      .derive_rule_based_constraints(graph, samples = samples, priority = priority, via = via, min_weight = min_weight, max_distance = max_distance)
-    }
+    composite = switch(
+      strategy,
+      strict = .derive_composite_strict_constraints(graph, samples = samples, via = via, min_weight = min_weight, max_distance = max_distance),
+      rule_based = .derive_rule_based_constraints(
+        graph, samples = samples, priority = priority, via = via, min_weight = min_weight, max_distance = max_distance
+      ),
+      min_cut = .derive_composite_min_cut_constraints(
+        graph, samples = samples, via = via, min_weight = min_weight, max_distance = max_distance, k = k
+      )
+    )
   )
 
   if (isTRUE(time_ordering) && !identical(mode, "time")) {

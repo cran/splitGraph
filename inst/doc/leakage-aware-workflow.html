@@ -12,7 +12,7 @@
 
 <meta name="author" content="Selçuk Korkmaz" />
 
-<meta name="date" content="2026-11-05" />
+<meta name="date" content="2026-11-24" />
 
 <title>splitGraph: From Metadata to Leakage-Aware Split Design</title>
 
@@ -149,7 +149,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 
 <h1 class="title toc-ignore">splitGraph: From Metadata to Leakage-Aware Split Design</h1>
 <h4 class="author">Selçuk Korkmaz</h4>
-<h4 class="date">2026-11-05</h4>
+<h4 class="date">2026-11-24</h4>
 
 
 <div id="TOC">
@@ -409,7 +409,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb3-128"><a href="#cb3-128" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
 <p>The node and edge tables are canonical and typed. The package assigns globally unique node IDs such as <code>sample:S1</code> and <code>subject:P1</code>, so different entity types cannot collide accidentally.</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>sample_nodes</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; &lt;graph_node_set&gt; 6 nodes across 1 types (schema 0.3.0 )</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; &lt;graph_node_set&gt; 6 nodes across 1 types (schema 0.4.0 )</span></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="fu">as.data.frame</span>(sample_nodes)[, <span class="fu">c</span>(<span class="st">&quot;node_id&quot;</span>, <span class="st">&quot;node_type&quot;</span>, <span class="st">&quot;node_key&quot;</span>, <span class="st">&quot;label&quot;</span>)]</span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     node_id node_type node_key label</span></span>
 <span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1 sample:S1    Sample       S1    S1</span></span>
@@ -502,7 +502,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] &quot;VignetteDemo&quot;</span></span>
 <span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
 <span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; $schema_version</span></span>
-<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] &quot;0.3.0&quot;</span></span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] &quot;0.4.0&quot;</span></span>
 <span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
 <span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; $n_nodes</span></span>
 <span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] 25</span></span>
@@ -537,10 +537,10 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <p>Both representations stay reachable. <code>graph$nodes</code> and <code>graph$edges</code> are the tables; <code>as_igraph()</code> hands you the <code>igraph</code> object, with <code>node_type</code> and <code>node_key</code> on the vertices and <code>edge_type</code> on the edges, so anything igraph can compute is available without leaving the typed model:</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>ig <span class="ot">&lt;-</span> <span class="fu">as_igraph</span>(graph)</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>ig</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; IGRAPH af0a4f8 DN-- 25 42 -- </span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; IGRAPH aa842d5 DN-- 25 42 -- </span></span>
 <span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; + attr: name (v/c), node_type (v/c), node_key (v/c), label (v/c),</span></span>
 <span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; | edge_id (e/c), edge_type (e/c)</span></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; + edges from af0a4f8 (vertex names):</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; + edges from aa842d5 (vertex names):</span></span>
 <span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [1] sample:S1-&gt;subject:P1   sample:S2-&gt;subject:P1   sample:S3-&gt;subject:P2  </span></span>
 <span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [4] sample:S4-&gt;subject:P3   sample:S5-&gt;subject:P4   sample:S6-&gt;subject:P2  </span></span>
 <span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [7] sample:S1-&gt;batch:B1     sample:S2-&gt;batch:B2     sample:S3-&gt;batch:B1    </span></span>
@@ -652,25 +652,29 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>validation</span>
 <span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; &lt;depgraph_validation_report&gt;  vignette_graph</span></span>
 <span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Valid: TRUE </span></span>
-<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Issues: 6 </span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Issues: 8 </span></span>
 <span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   By severity:</span></span>
 <span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    - advisory : 5 </span></span>
-<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    - warning : 1</span></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    - warning : 3</span></span>
 <span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a><span class="fu">as.data.frame</span>(validation)[, <span class="fu">c</span>(<span class="st">&quot;level&quot;</span>, <span class="st">&quot;severity&quot;</span>, <span class="st">&quot;code&quot;</span>, <span class="st">&quot;message&quot;</span>)]</span>
-<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     level severity                         code</span></span>
-<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1 leakage advisory     repeated_subject_samples</span></span>
-<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2 leakage advisory     repeated_subject_samples</span></span>
-<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3 leakage  warning  subject_cross_study_overlap</span></span>
-<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 4 leakage advisory       per_dataset_featureset</span></span>
-<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 5 leakage advisory shared_featureset_provenance</span></span>
-<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 6 leakage advisory            heavy_batch_reuse</span></span>
-<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                                                                    message</span></span>
-<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1                      Subject `subject:P1` is linked to multiple samples.</span></span>
-<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2                      Subject `subject:P2` is linked to multiple samples.</span></span>
-<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3                    Subject `subject:P2` appears across multiple studies.</span></span>
-<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 4 FeatureSet `featureset:FS_GLOBAL` was derived at the full-dataset scope.</span></span>
-<span id="cb15-23"><a href="#cb15-23" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 5     FeatureSet `featureset:FS_GLOBAL` is shared across multiple samples.</span></span>
-<span id="cb15-24"><a href="#cb15-24" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 6                          Batch `batch:B1` is reused across many samples.</span></span></code></pre></div>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     level severity                                 code</span></span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1 leakage advisory             repeated_subject_samples</span></span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2 leakage advisory             repeated_subject_samples</span></span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3 leakage  warning          subject_cross_study_overlap</span></span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 4 leakage advisory               per_dataset_featureset</span></span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 5 leakage advisory         shared_featureset_provenance</span></span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 6 leakage advisory                    heavy_batch_reuse</span></span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 7 leakage  warning cross_study_featureset_contamination</span></span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 8 leakage  warning cross_batch_featureset_contamination</span></span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                                                                                                                                                                                                                                                                                                                       message</span></span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1                                                                                                                                                                                                                                                                         Subject `subject:P1` is linked to multiple samples.</span></span>
+<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2                                                                                                                                                                                                                                                                         Subject `subject:P2` is linked to multiple samples.</span></span>
+<span id="cb15-23"><a href="#cb15-23" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3                                                                                                                                                                                                                                                                       Subject `subject:P2` appears across multiple studies.</span></span>
+<span id="cb15-24"><a href="#cb15-24" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 4                                                                                                                                                                                                                                                    FeatureSet `featureset:FS_GLOBAL` was derived at the full-dataset scope.</span></span>
+<span id="cb15-25"><a href="#cb15-25" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 5                                                                                                                                                                                                                                                        FeatureSet `featureset:FS_GLOBAL` is shared across multiple samples.</span></span>
+<span id="cb15-26"><a href="#cb15-26" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 6                                                                                                                                                                                                                                                                             Batch `batch:B1` is reused across many samples.</span></span>
+<span id="cb15-27"><a href="#cb15-27" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 7 FeatureSet `featureset:FS_GLOBAL` generated from study:ST1 is used by sample(s) outside its source study (sample:S4, sample:S6) while the source study&#39;s own samples are also in the data (3 sample(s)); if the FeatureSet was derived using those samples, evaluating them is not independent of how features were chosen.</span></span>
+<span id="cb15-28"><a href="#cb15-28" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 8  FeatureSet `featureset:FS_GLOBAL` generated from batch:B1 is used by sample(s) outside its source batch (sample:S2, sample:S4) while the source batch&#39;s own samples are also in the data (3 sample(s)); if the FeatureSet was derived using those samples, evaluating them is not independent of how features were chosen.</span></span></code></pre></div>
 <p>That output is the core value proposition of the package in one place:</p>
 <ul>
 <li>repeated subjects are surfaced explicitly</li>
@@ -737,10 +741,14 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">as.data.frame</span>(</span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">validate_graph</span>(graph, <span class="at">levels =</span> <span class="st">&quot;leakage&quot;</span>, <span class="at">severities =</span> <span class="st">&quot;warning&quot;</span>)</span>
 <span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>)[, <span class="fu">c</span>(<span class="st">&quot;severity&quot;</span>, <span class="st">&quot;code&quot;</span>, <span class="st">&quot;message&quot;</span>)]</span>
-<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   severity                        code</span></span>
-<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1  warning subject_cross_study_overlap</span></span>
-<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                                                 message</span></span>
-<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1 Subject `subject:P2` appears across multiple studies.</span></span></code></pre></div>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   severity                                 code</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1  warning          subject_cross_study_overlap</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2  warning cross_study_featureset_contamination</span></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3  warning cross_batch_featureset_contamination</span></span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                                                                                                                                                                                                                                                                                                                       message</span></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1                                                                                                                                                                                                                                                                       Subject `subject:P2` appears across multiple studies.</span></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2 FeatureSet `featureset:FS_GLOBAL` generated from study:ST1 is used by sample(s) outside its source study (sample:S4, sample:S6) while the source study&#39;s own samples are also in the data (3 sample(s)); if the FeatureSet was derived using those samples, evaluating them is not independent of how features were chosen.</span></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3  FeatureSet `featureset:FS_GLOBAL` generated from batch:B1 is used by sample(s) outside its source batch (sample:S2, sample:S4) while the source batch&#39;s own samples are also in the data (3 sample(s)); if the FeatureSet was derived using those samples, evaluating them is not independent of how features were chosen.</span></span></code></pre></div>
 <p>The package is also intentionally strict about silent failure. If you ask for a subset of samples and some of them do not resolve, it errors instead of dropping them.</p>
 <div class="sourceCode" id="cb17"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">tryCatch</span>(</span>
 <span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">derive_split_constraints</span>(graph, <span class="at">mode =</span> <span class="st">&quot;subject&quot;</span>, <span class="at">samples =</span> <span class="fu">c</span>(<span class="st">&quot;S1&quot;</span>, <span class="st">&quot;BAD&quot;</span>)),</span>
@@ -1407,37 +1415,41 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb40-7"><a href="#cb40-7" aria-hidden="true" tabindex="-1"></a>risk_summary</span>
 <span id="cb40-8"><a href="#cb40-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; &lt;leakage_risk_summary&gt;</span></span>
-<span id="cb40-9"><a href="#cb40-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Overview: Detected 13 structural leakage diagnostics across validation, constraint, and split-spec readiness. </span></span>
-<span id="cb40-10"><a href="#cb40-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Diagnostics: 13</span></span>
+<span id="cb40-9"><a href="#cb40-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Overview: Detected 15 structural leakage diagnostics across validation, constraint, and split-spec readiness. </span></span>
+<span id="cb40-10"><a href="#cb40-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Diagnostics: 15</span></span>
 <span id="cb40-11"><a href="#cb40-11" aria-hidden="true" tabindex="-1"></a><span class="fu">as.data.frame</span>(risk_summary)[, <span class="fu">c</span>(<span class="st">&quot;source&quot;</span>, <span class="st">&quot;severity&quot;</span>, <span class="st">&quot;category&quot;</span>, <span class="st">&quot;severed&quot;</span>, <span class="st">&quot;message&quot;</span>)]</span>
-<span id="cb40-12"><a href="#cb40-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;        source severity                     category severed</span></span>
-<span id="cb40-13"><a href="#cb40-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1  validation advisory     repeated_subject_samples    TRUE</span></span>
-<span id="cb40-14"><a href="#cb40-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2  validation advisory     repeated_subject_samples    TRUE</span></span>
-<span id="cb40-15"><a href="#cb40-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3  validation  warning  subject_cross_study_overlap    TRUE</span></span>
-<span id="cb40-16"><a href="#cb40-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 4  validation advisory       per_dataset_featureset   FALSE</span></span>
-<span id="cb40-17"><a href="#cb40-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 5  validation advisory shared_featureset_provenance   FALSE</span></span>
-<span id="cb40-18"><a href="#cb40-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 6  validation advisory            heavy_batch_reuse    TRUE</span></span>
-<span id="cb40-19"><a href="#cb40-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 7  constraint advisory   singleton_heavy_constraint      NA</span></span>
-<span id="cb40-20"><a href="#cb40-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 8  split_spec advisory             split_spec_ready      NA</span></span>
-<span id="cb40-21"><a href="#cb40-21" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 9  split_spec advisory           ordering_available      NA</span></span>
-<span id="cb40-22"><a href="#cb40-22" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 10 split_spec advisory           blocking_available      NA</span></span>
-<span id="cb40-23"><a href="#cb40-23" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 11 split_spec advisory           blocking_available      NA</span></span>
-<span id="cb40-24"><a href="#cb40-24" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 12 split_spec advisory           blocking_available      NA</span></span>
-<span id="cb40-25"><a href="#cb40-25" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 13 split_spec advisory   split_spec_singleton_heavy      NA</span></span>
-<span id="cb40-26"><a href="#cb40-26" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                                                                     message</span></span>
-<span id="cb40-27"><a href="#cb40-27" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1                       Subject `subject:P1` is linked to multiple samples.</span></span>
-<span id="cb40-28"><a href="#cb40-28" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2                       Subject `subject:P2` is linked to multiple samples.</span></span>
-<span id="cb40-29"><a href="#cb40-29" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3                     Subject `subject:P2` appears across multiple studies.</span></span>
-<span id="cb40-30"><a href="#cb40-30" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 4  FeatureSet `featureset:FS_GLOBAL` was derived at the full-dataset scope.</span></span>
-<span id="cb40-31"><a href="#cb40-31" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 5      FeatureSet `featureset:FS_GLOBAL` is shared across multiple samples.</span></span>
-<span id="cb40-32"><a href="#cb40-32" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 6                           Batch `batch:B1` is reused across many samples.</span></span>
-<span id="cb40-33"><a href="#cb40-33" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 7            The derived split constraint is dominated by singleton groups.</span></span>
-<span id="cb40-34"><a href="#cb40-34" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 8                                   Split spec passed preflight validation.</span></span>
-<span id="cb40-35"><a href="#cb40-35" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 9     Split spec provides ordering through `order_rank` for 5 of 6 samples.</span></span>
-<span id="cb40-36"><a href="#cb40-36" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 10  Split spec provides blocking variable `batch_group` for 5 of 6 samples.</span></span>
-<span id="cb40-37"><a href="#cb40-37" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 11  Split spec provides blocking variable `study_group` for 6 of 6 samples.</span></span>
-<span id="cb40-38"><a href="#cb40-38" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 12  Split spec provides blocking variable `assay_group` for 6 of 6 samples.</span></span>
-<span id="cb40-39"><a href="#cb40-39" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 13                    Split spec grouping is dominated by singleton groups.</span></span></code></pre></div>
+<span id="cb40-12"><a href="#cb40-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;        source severity                             category severed</span></span>
+<span id="cb40-13"><a href="#cb40-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1  validation advisory             repeated_subject_samples    TRUE</span></span>
+<span id="cb40-14"><a href="#cb40-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2  validation advisory             repeated_subject_samples    TRUE</span></span>
+<span id="cb40-15"><a href="#cb40-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3  validation  warning          subject_cross_study_overlap    TRUE</span></span>
+<span id="cb40-16"><a href="#cb40-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 4  validation advisory               per_dataset_featureset   FALSE</span></span>
+<span id="cb40-17"><a href="#cb40-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 5  validation advisory         shared_featureset_provenance   FALSE</span></span>
+<span id="cb40-18"><a href="#cb40-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 6  validation advisory                    heavy_batch_reuse    TRUE</span></span>
+<span id="cb40-19"><a href="#cb40-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 7  validation  warning cross_study_featureset_contamination   FALSE</span></span>
+<span id="cb40-20"><a href="#cb40-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 8  validation  warning cross_batch_featureset_contamination   FALSE</span></span>
+<span id="cb40-21"><a href="#cb40-21" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 9  constraint advisory           singleton_heavy_constraint      NA</span></span>
+<span id="cb40-22"><a href="#cb40-22" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 10 split_spec advisory                     split_spec_ready      NA</span></span>
+<span id="cb40-23"><a href="#cb40-23" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 11 split_spec advisory                   ordering_available      NA</span></span>
+<span id="cb40-24"><a href="#cb40-24" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 12 split_spec advisory                   blocking_available      NA</span></span>
+<span id="cb40-25"><a href="#cb40-25" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 13 split_spec advisory                   blocking_available      NA</span></span>
+<span id="cb40-26"><a href="#cb40-26" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 14 split_spec advisory                   blocking_available      NA</span></span>
+<span id="cb40-27"><a href="#cb40-27" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 15 split_spec advisory           split_spec_singleton_heavy      NA</span></span>
+<span id="cb40-28"><a href="#cb40-28" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                                                                                                                                                                                                                                                                                                                        message</span></span>
+<span id="cb40-29"><a href="#cb40-29" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1                                                                                                                                                                                                                                                                          Subject `subject:P1` is linked to multiple samples.</span></span>
+<span id="cb40-30"><a href="#cb40-30" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2                                                                                                                                                                                                                                                                          Subject `subject:P2` is linked to multiple samples.</span></span>
+<span id="cb40-31"><a href="#cb40-31" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3                                                                                                                                                                                                                                                                        Subject `subject:P2` appears across multiple studies.</span></span>
+<span id="cb40-32"><a href="#cb40-32" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 4                                                                                                                                                                                                                                                     FeatureSet `featureset:FS_GLOBAL` was derived at the full-dataset scope.</span></span>
+<span id="cb40-33"><a href="#cb40-33" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 5                                                                                                                                                                                                                                                         FeatureSet `featureset:FS_GLOBAL` is shared across multiple samples.</span></span>
+<span id="cb40-34"><a href="#cb40-34" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 6                                                                                                                                                                                                                                                                              Batch `batch:B1` is reused across many samples.</span></span>
+<span id="cb40-35"><a href="#cb40-35" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 7  FeatureSet `featureset:FS_GLOBAL` generated from study:ST1 is used by sample(s) outside its source study (sample:S4, sample:S6) while the source study&#39;s own samples are also in the data (3 sample(s)); if the FeatureSet was derived using those samples, evaluating them is not independent of how features were chosen.</span></span>
+<span id="cb40-36"><a href="#cb40-36" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 8   FeatureSet `featureset:FS_GLOBAL` generated from batch:B1 is used by sample(s) outside its source batch (sample:S2, sample:S4) while the source batch&#39;s own samples are also in the data (3 sample(s)); if the FeatureSet was derived using those samples, evaluating them is not independent of how features were chosen.</span></span>
+<span id="cb40-37"><a href="#cb40-37" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 9                                                                                                                                                                                                                                                               The derived split constraint is dominated by singleton groups.</span></span>
+<span id="cb40-38"><a href="#cb40-38" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 10                                                                                                                                                                                                                                                                                     Split spec passed preflight validation.</span></span>
+<span id="cb40-39"><a href="#cb40-39" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 11                                                                                                                                                                                                                                                       Split spec provides ordering through `order_rank` for 5 of 6 samples.</span></span>
+<span id="cb40-40"><a href="#cb40-40" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 12                                                                                                                                                                                                                                                     Split spec provides blocking variable `batch_group` for 5 of 6 samples.</span></span>
+<span id="cb40-41"><a href="#cb40-41" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 13                                                                                                                                                                                                                                                     Split spec provides blocking variable `study_group` for 6 of 6 samples.</span></span>
+<span id="cb40-42"><a href="#cb40-42" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 14                                                                                                                                                                                                                                                     Split spec provides blocking variable `assay_group` for 6 of 6 samples.</span></span>
+<span id="cb40-43"><a href="#cb40-43" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 15                                                                                                                                                                                                                                                                       Split spec grouping is dominated by singleton groups.</span></span></code></pre></div>
 <p>Read the <code>severed</code> column against the constraint you actually chose. Here the strict composite constraint (<code>via = c(&quot;Subject&quot;, &quot;Batch&quot;)</code>) severs the subject, cross-study, and batch-reuse risks (<code>TRUE</code>) because those samples are forced into the same group — but it does <strong>not</strong> address <code>per_dataset_featureset</code> or <code>shared_featureset_provenance</code> (<code>FALSE</code>), which are orthogonal to a subject/batch grouping: every sample shares <code>FS_GLOBAL</code>, so no grouping of samples can undo a feature set that was fitted on the whole cohort. The <code>NA</code> rows are the constraint and split-spec diagnostics, which describe readiness rather than a leakage path. That distinction is the point: the summary tells you which of your surfaced risks your split design has actually handled, and which still need attention (a different mode, a blocking variable, or a data fix) — so the leakage trade-off is explicit before any model is trained.</p>
 </div>
 <div id="downstream-handoff" class="section level2">
@@ -1499,9 +1511,9 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <p>Both writers stamp the file with the schema version they were produced under and a <code>$schema</code> URL that points at that exact version, so the reference keeps resolving after a later schema bump:</p>
 <div class="sourceCode" id="cb43"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a>on_disk <span class="ot">&lt;-</span> jsonlite<span class="sc">::</span><span class="fu">fromJSON</span>(graph_path, <span class="at">simplifyVector =</span> <span class="cn">FALSE</span>)</span>
 <span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a>on_disk<span class="sc">$</span>schema_version</span>
-<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] &quot;0.3.0&quot;</span></span>
+<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] &quot;0.4.0&quot;</span></span>
 <span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a><span class="fu">sub</span>(<span class="st">&quot;.*/schema/&quot;</span>, <span class="st">&quot;&quot;</span>, on_disk[[<span class="st">&quot;$schema&quot;</span>]])</span>
-<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] &quot;0.3.0/dependency_graph.schema.json&quot;</span></span></code></pre></div>
+<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] &quot;0.4.0/dependency_graph.schema.json&quot;</span></span></code></pre></div>
 <p>That stamp is what makes an old file readable by a newer splitGraph. When a file predates the installed schema, <code>migrate_dependency_graph_json()</code> and <code>migrate_split_spec_json()</code> rewrite it at the current version, filling anything introduced since with its default — a missing <code>split_spec</code> column becomes <code>NA</code> rather than an error. Files already current are rewritten unchanged, so the call is safe to run unconditionally on an archive:</p>
 <div class="sourceCode" id="cb44"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a>migrated <span class="ot">&lt;-</span> <span class="fu">migrate_dependency_graph_json</span>(graph_path, <span class="fu">tempfile</span>(<span class="at">fileext =</span> <span class="st">&quot;.json&quot;</span>))</span>
 <span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a><span class="fu">validate_graph_json</span>(migrated)<span class="sc">$</span>valid</span>
@@ -1697,18 +1709,18 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb51-9"><a href="#cb51-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  composite   strict         6        2              5       0.8333333</span></span>
 <span id="cb51-10"><a href="#cb51-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  effective_n_groups singleton_share k_fold_feasible n_risks_severed</span></span>
 <span id="cb51-11"><a href="#cb51-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;            3.600000       0.5000000            TRUE               3</span></span>
-<span id="cb51-12"><a href="#cb51-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;            3.000000       0.7500000            TRUE               1</span></span>
-<span id="cb51-13"><a href="#cb51-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;            2.571429       0.3333333            TRUE               0</span></span>
+<span id="cb51-12"><a href="#cb51-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;            3.000000       0.7500000            TRUE               3</span></span>
+<span id="cb51-13"><a href="#cb51-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;            2.571429       0.3333333            TRUE               1</span></span>
 <span id="cb51-14"><a href="#cb51-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;            3.600000       0.5000000            TRUE               0</span></span>
-<span id="cb51-15"><a href="#cb51-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;            1.384615       0.5000000            TRUE               0</span></span>
+<span id="cb51-15"><a href="#cb51-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;            1.384615       0.5000000            TRUE               3</span></span>
 <span id="cb51-16"><a href="#cb51-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;            1.384615       0.5000000            TRUE               4</span></span>
 <span id="cb51-17"><a href="#cb51-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  n_risks_remaining min_stratum_groups</span></span>
-<span id="cb51-18"><a href="#cb51-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                  3                  2</span></span>
+<span id="cb51-18"><a href="#cb51-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                  5                  2</span></span>
 <span id="cb51-19"><a href="#cb51-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                  5                  2</span></span>
-<span id="cb51-20"><a href="#cb51-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                  6                  2</span></span>
-<span id="cb51-21"><a href="#cb51-21" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                  6                  3</span></span>
-<span id="cb51-22"><a href="#cb51-22" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                  6                  1</span></span>
-<span id="cb51-23"><a href="#cb51-23" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                  2                  1</span></span>
+<span id="cb51-20"><a href="#cb51-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                  7                  2</span></span>
+<span id="cb51-21"><a href="#cb51-21" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                  8                  3</span></span>
+<span id="cb51-22"><a href="#cb51-22" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                  5                  1</span></span>
+<span id="cb51-23"><a href="#cb51-23" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                  4                  1</span></span>
 <span id="cb51-24"><a href="#cb51-24" aria-hidden="true" tabindex="-1"></a><span class="fu">find_dependency_bridges</span>(graph, <span class="at">via =</span> <span class="fu">c</span>(<span class="st">&quot;Subject&quot;</span>, <span class="st">&quot;Batch&quot;</span>))</span>
 <span id="cb51-25"><a href="#cb51-25" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; &lt;graph_query_result&gt; find_dependency_bridges </span></span>
 <span id="cb51-26"><a href="#cb51-26" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Rows: 3</span></span></code></pre></div>

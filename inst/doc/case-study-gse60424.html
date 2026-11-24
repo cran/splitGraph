@@ -157,6 +157,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <li><a href="#derive-constraints">Derive constraints</a>
 <ul>
 <li><a href="#composite-grouping-and-over-merging">Composite grouping and over-merging</a></li>
+<li><a href="#feasibility-comparison-and-bridge-diagnostics">Feasibility comparison and bridge diagnostics</a></li>
 </ul></li>
 <li><a href="#the-split_spec">The split_spec</a></li>
 <li><a href="#working-with-a-subset">Working with a subset</a></li>
@@ -200,7 +201,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. Every donor has exactly one disease status.</span></span>
 <span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="fu">all</span>(<span class="fu">tapply</span>(gse<span class="sc">$</span>condition, gse<span class="sc">$</span>subject_id, <span class="cf">function</span>(x) <span class="fu">length</span>(<span class="fu">unique</span>(x))) <span class="sc">==</span> <span class="dv">1</span>)</span>
 <span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
-<p>One caveat about the labels: GEO records multiple sclerosis samples as “pretreatment” or “posttreatment”, but these come from <em>different</em> donors (three each), not from the same individuals over time. There is therefore no repeated-measure time axis in this cohort, and we deliberately do <strong>not</strong> model the labels as timepoints; they stay inside <code>disease_status</code>.</p>
+<p>One caveat about the labels: GEO records multiple sclerosis samples as “pretreatment” or “posttreatment” under six distinct <code>donorid</code> values (<code>D31</code>, <code>D45</code>, <code>D55</code> for <code>pre_treatment</code> and <code>D33</code>, <code>D46</code>, <code>D56</code> for <code>post_treatment</code>). Under the raw <code>subject_id</code> column, each draw ID appears at only one label:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">with</span>(gse[gse<span class="sc">$</span>condition <span class="sc">==</span> <span class="st">&quot;MS&quot;</span>, ], <span class="fu">table</span>(subject_id, timepoint_id))</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;           timepoint_id</span></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; subject_id post_treatment pre_treatment</span></span>
@@ -210,6 +211,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;        D46              7             0</span></span>
 <span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;        D55              0             6</span></span>
 <span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;        D56              7             0</span></span></code></pre></div>
+<p>However, the GEO study protocol states that blood was drawn from MS patients before and 24 hours after their first interferon-beta treatment, and the collection dates (<code>2012-05-21</code>/<code>22</code> for <code>D31</code>/<code>D33</code>, <code>2012-06-28</code>/<code>29</code> for <code>D45</code>/<code>D46</code>, and <code>2012-08-23</code>/<code>24</code> for <code>D55</code>/<code>D56</code>) and sex (<code>F</code>) are consistent with three putative pre/post patient pairs. Below we first build the graph from the as-recorded <code>subject_id</code> column (20 draw IDs) and then show how mapping those putative pairs (or linking them with must-link edges) yields 17 putative patient groups.</p>
 </div>
 <div id="build-the-graph" class="section level2">
 <h2>Build the graph</h2>
@@ -313,69 +315,136 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2   20_CD4T composite_subject:D20         subject</span></span>
 <span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3   20_CD8T composite_subject:D20         subject</span></span></code></pre></div>
 </div>
+<div id="feasibility-comparison-and-bridge-diagnostics" class="section level3">
+<h3>Feasibility comparison and bridge diagnostics</h3>
+<p>Instead of checking each mode by hand, <code>compare_split_constraints()</code> evaluates all candidate modes side by side. Notice <code>min_stratum_groups = 3</code>: because the smallest disease strata (<code>ALS</code> and <code>Sepsis</code>) contain only 3 donors each, a 5-fold donor-grouped split (<code>k = 5</code>) cannot place every disease class into every test fold, even though 20 total donors satisfy <code>k_fold_feasible = TRUE</code> for unstratified 5-fold grouping. For multi-class stratified evaluation across all five conditions, <code>k = 3L</code> (3-fold CV) is the maximum fold count that guarantees at least one donor per disease class in every fold:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>cmp <span class="ot">&lt;-</span> <span class="fu">compare_split_constraints</span>(g, <span class="at">k =</span> 3L)</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>cmp</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; &lt;split_constraint_comparison&gt; (k = 3 folds)</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;       mode strategy n_samples n_groups max_group_size max_group_share</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    subject  subject       134       20              7      0.05223881</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;      batch    batch       134       20              7      0.05223881</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     region   region       134        7             20      0.14925373</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  composite   strict       134        1            134      1.00000000</span></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  effective_n_groups singleton_share k_fold_feasible n_risks_severed</span></span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;           19.906874               0            TRUE              20</span></span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;           19.906874               0            TRUE              20</span></span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;            6.916795               0            TRUE               0</span></span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;            1.000000               0           FALSE               0</span></span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  n_risks_remaining min_stratum_groups</span></span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                  0                  3</span></span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                  0                  3</span></span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                 20                  7</span></span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                 20                  1</span></span></code></pre></div>
+<p>Both <code>subject</code> and <code>batch</code> report <code>n_risks_severed = 20</code> because collection date is nested 1-to-1 within donor on this cohort (so grouping by <code>batch</code> empirically keeps every donor’s samples together, even though <code>batch</code> mode does not semantically enforce subject separation in general cohorts). Meanwhile, <code>composite</code> (<code>strategy = &quot;strict&quot;</code>) collapses all 134 samples into <code>n_groups = 1</code> (<code>k_fold_feasible = FALSE</code>), which cannot form a train/test split and therefore reports <code>n_risks_severed = 0</code>.</p>
+<p>To also prevent the three putative pre/post MS patient pairs (<code>D31</code>/<code>D33</code>, <code>D45</code>/<code>D46</code>, <code>D55</code>/<code>D56</code>) from straddling folds without re-importing <code>g</code>, we can add synthetic must-link edges via <code>relatedness_edges_from_kinship()</code> (using <code>0.5</code>, the theoretical self/duplicate kinship value on the KING scale, as a must-link weight rather than an empirical genotype estimate), yielding 17 putative patient groups with <code>min_stratum_groups = 3</code>:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>ms_pairs <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">id1 =</span> <span class="fu">c</span>(<span class="st">&quot;D31&quot;</span>, <span class="st">&quot;D45&quot;</span>, <span class="st">&quot;D55&quot;</span>),</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">id2 =</span> <span class="fu">c</span>(<span class="st">&quot;D33&quot;</span>, <span class="st">&quot;D46&quot;</span>, <span class="st">&quot;D56&quot;</span>),</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">kinship =</span> <span class="fu">c</span>(<span class="fl">0.5</span>, <span class="fl">0.5</span>, <span class="fl">0.5</span>),</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>g_paired <span class="ot">&lt;-</span> <span class="fu">add_edges</span>(</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>  g,</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">relatedness_edges_from_kinship</span>(ms_pairs, <span class="at">threshold =</span> <span class="fl">0.25</span>)</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a><span class="fu">compare_split_constraints</span>(g_paired, <span class="at">modes =</span> <span class="fu">c</span>(<span class="st">&quot;subject&quot;</span>, <span class="st">&quot;relatedness&quot;</span>), <span class="at">k =</span> 3L)</span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; &lt;split_constraint_comparison&gt; (k = 3 folds)</span></span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;         mode    strategy n_samples n_groups max_group_size max_group_share</span></span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;      subject     subject       134       20              7      0.05223881</span></span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  relatedness relatedness       134       17             14      0.10447761</span></span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  effective_n_groups singleton_share k_fold_feasible n_risks_severed</span></span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;            19.90687               0            TRUE              20</span></span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;            15.53287               0            TRUE              20</span></span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  n_risks_remaining min_stratum_groups</span></span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                  0                  3</span></span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                  0                  3</span></span></code></pre></div>
+<p>When a composite derivation over-merges, <code>find_dependency_bridges()</code> ranks the non-sample entities by how many connected components would be gained (or how much the largest component would shrink) if each entity were removed:</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>bridges <span class="ot">&lt;-</span> <span class="fu">find_dependency_bridges</span>(g, <span class="at">via =</span> <span class="fu">c</span>(<span class="st">&quot;Subject&quot;</span>, <span class="st">&quot;Region&quot;</span>), <span class="at">top_n =</span> 7L)</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="fu">as.data.frame</span>(bridges)[, <span class="fu">c</span>(<span class="st">&quot;node_id&quot;</span>, <span class="st">&quot;node_type&quot;</span>, <span class="st">&quot;n_samples_linked&quot;</span>,</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>                           <span class="st">&quot;n_components_before&quot;</span>, <span class="st">&quot;n_components_without&quot;</span>,</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>                           <span class="st">&quot;is_bridge&quot;</span>)]</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;              node_id node_type n_samples_linked n_components_before</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1     region:B-cells    Region               20                   1</span></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2         region:CD4    Region               20                   1</span></span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3         region:CD8    Region               20                   1</span></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 4   region:Monocytes    Region               20                   1</span></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 5 region:Neutrophils    Region               20                   1</span></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 6 region:Whole Blood    Region               20                   1</span></span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 7          region:NK    Region               14                   1</span></span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   n_components_without is_bridge</span></span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1                    1     FALSE</span></span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2                    1     FALSE</span></span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3                    1     FALSE</span></span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 4                    1     FALSE</span></span>
+<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 5                    1     FALSE</span></span>
+<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 6                    1     FALSE</span></span>
+<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 7                    1     FALSE</span></span></code></pre></div>
+<p>Every <code>Region</code> node links 14 to 20 samples across donors; removing any single cell population still leaves the other six cell populations chaining all 20 donors into a single component (<code>n_components_without = 1</code>), confirming that <code>Region</code> is a cohort-wide cross-cutting factor rather than a single-node bridge.</p>
+</div>
 </div>
 <div id="the-split_spec" class="section level2">
 <h2>The split_spec</h2>
-<p>Grouping by subject is the right primary constraint here; batch and region travel as blocking annotations and the disease status as the stratum.</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>spec <span class="ot">&lt;-</span> <span class="fu">as_split_spec</span>(by_subject, <span class="at">graph =</span> g)</span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>spec</span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; &lt;split_spec&gt; subject </span></span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Samples: 134 </span></span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Groups: 20 </span></span>
-<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Block vars: batch_group, region_group </span></span>
-<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Stratum var: stratum </span></span>
-<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Recommended resampling: grouped_cv</span></span>
-<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>spec<span class="sc">$</span>block_vars</span>
-<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] &quot;batch_group&quot;  &quot;region_group&quot;</span></span>
-<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>spec<span class="sc">$</span>stratum_var</span>
-<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] &quot;stratum&quot;</span></span>
-<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(<span class="fu">as.data.frame</span>(spec)[, <span class="fu">c</span>(<span class="st">&quot;sample_id&quot;</span>, <span class="st">&quot;group_id&quot;</span>, <span class="st">&quot;batch_group&quot;</span>, <span class="st">&quot;region_group&quot;</span>, <span class="st">&quot;stratum&quot;</span>)], <span class="dv">7</span>)</span>
-<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;        sample_id    group_id batch_group region_group         stratum</span></span>
-<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1      20_Bcells subject:D20  2012-01-25      B-cells Healthy Control</span></span>
-<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2        20_CD4T subject:D20  2012-01-25          CD4 Healthy Control</span></span>
-<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3        20_CD8T subject:D20  2012-01-25          CD8 Healthy Control</span></span>
-<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 4   20_Monocytes subject:D20  2012-01-25    Monocytes Healthy Control</span></span>
-<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 5 20_Neutrophils subject:D20  2012-01-25  Neutrophils Healthy Control</span></span>
-<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 6          20_NK subject:D20  2012-01-25           NK Healthy Control</span></span>
-<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 7      20_Tempus subject:D20  2012-01-25  Whole Blood Healthy Control</span></span>
-<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a><span class="fu">validate_split_spec</span>(spec)</span>
-<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; &lt;split_spec_validation&gt;</span></span>
-<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Valid: TRUE </span></span>
-<span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Issues: 0</span></span></code></pre></div>
+<p>Grouping by subject is the right primary constraint here; batch and region travel as blocking annotations and the disease status as the stratum (the default <code>stratify_by = &quot;outcome&quot;</code>; pass <code>stratify_by = &quot;region&quot;</code> or <code>&quot;none&quot;</code> to populate <code>stratum</code> from a blocking axis or omit it).</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>spec <span class="ot">&lt;-</span> <span class="fu">as_split_spec</span>(by_subject, <span class="at">graph =</span> g)</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>spec</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; &lt;split_spec&gt; subject </span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Samples: 134 </span></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Groups: 20 </span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Block vars: batch_group, region_group </span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Stratum var: stratum </span></span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Recommended resampling: grouped_cv</span></span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>spec<span class="sc">$</span>block_vars</span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] &quot;batch_group&quot;  &quot;region_group&quot;</span></span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>spec<span class="sc">$</span>stratum_var</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] &quot;stratum&quot;</span></span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(<span class="fu">as.data.frame</span>(spec)[, <span class="fu">c</span>(<span class="st">&quot;sample_id&quot;</span>, <span class="st">&quot;group_id&quot;</span>, <span class="st">&quot;batch_group&quot;</span>, <span class="st">&quot;region_group&quot;</span>, <span class="st">&quot;stratum&quot;</span>)], <span class="dv">7</span>)</span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;        sample_id    group_id batch_group region_group         stratum</span></span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1      20_Bcells subject:D20  2012-01-25      B-cells Healthy Control</span></span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2        20_CD4T subject:D20  2012-01-25          CD4 Healthy Control</span></span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3        20_CD8T subject:D20  2012-01-25          CD8 Healthy Control</span></span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 4   20_Monocytes subject:D20  2012-01-25    Monocytes Healthy Control</span></span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 5 20_Neutrophils subject:D20  2012-01-25  Neutrophils Healthy Control</span></span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 6          20_NK subject:D20  2012-01-25           NK Healthy Control</span></span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 7      20_Tempus subject:D20  2012-01-25  Whole Blood Healthy Control</span></span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a><span class="fu">validate_split_spec</span>(spec)</span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; &lt;split_spec_validation&gt;</span></span>
+<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Valid: TRUE </span></span>
+<span id="cb17-25"><a href="#cb17-25" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   Issues: 0</span></span></code></pre></div>
 <p>The leakage summary marks which of the validation findings this constraint structurally severs:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>risks <span class="ot">&lt;-</span> <span class="fu">summarize_leakage_risks</span>(g, <span class="at">constraint =</span> by_subject, <span class="at">split_spec =</span> spec)</span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="fu">unique</span>(<span class="fu">as.data.frame</span>(risks)[, <span class="fu">c</span>(<span class="st">&quot;category&quot;</span>, <span class="st">&quot;severity&quot;</span>, <span class="st">&quot;severed&quot;</span>)])</span>
-<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                    category severity severed</span></span>
-<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1  repeated_subject_samples advisory    TRUE</span></span>
-<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 21         split_spec_ready advisory      NA</span></span>
-<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 22       blocking_available advisory      NA</span></span></code></pre></div>
+<div class="sourceCode" id="cb18"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>risks <span class="ot">&lt;-</span> <span class="fu">summarize_leakage_risks</span>(g, <span class="at">constraint =</span> by_subject, <span class="at">split_spec =</span> spec)</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="fu">unique</span>(<span class="fu">as.data.frame</span>(risks)[, <span class="fu">c</span>(<span class="st">&quot;category&quot;</span>, <span class="st">&quot;severity&quot;</span>, <span class="st">&quot;severed&quot;</span>)])</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                    category severity severed</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1  repeated_subject_samples advisory    TRUE</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 21         split_spec_ready advisory      NA</span></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 22       blocking_available advisory      NA</span></span></code></pre></div>
 <p>A consumer that groups on <code>group_id</code> and stratifies on <code>stratum</code> (for example scikit-learn’s <code>StratifiedGroupKFold</code> through the shipped Python reader, or bioLeak’s <code>as_leaksplits()</code>) will now keep every donor’s cell populations on one side of each fold while keeping the five conditions represented in every fold as far as 20 donors allow.</p>
 </div>
 <div id="working-with-a-subset" class="section level2">
 <h2>Working with a subset</h2>
 <p>Restricting the analysis to, say, healthy controls and multiple sclerosis patients is a graph operation, not a re-import:</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>keep <span class="ot">&lt;-</span> gse<span class="sc">$</span>sample_id[gse<span class="sc">$</span>condition <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">&quot;Healthy Control&quot;</span>, <span class="st">&quot;MS&quot;</span>)]</span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>g_sub <span class="ot">&lt;-</span> <span class="fu">subset_graph</span>(g, <span class="at">samples =</span> keep, <span class="at">graph_name =</span> <span class="st">&quot;GSE60424: HC vs MS&quot;</span>)</span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(g_sub)<span class="sc">$</span>node_types</span>
-<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     value  n</span></span>
-<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1  Sample 67</span></span>
-<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2   Batch 10</span></span>
-<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3 Subject 10</span></span>
-<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 4  Region  7</span></span>
-<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 5 Outcome  2</span></span>
-<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>spec_sub <span class="ot">&lt;-</span> <span class="fu">as_split_spec</span>(<span class="fu">derive_split_constraints</span>(g_sub, <span class="st">&quot;subject&quot;</span>), <span class="at">graph =</span> g_sub)</span>
-<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a><span class="fu">table</span>(spec_sub<span class="sc">$</span>sample_data<span class="sc">$</span>stratum)</span>
-<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
-<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Healthy Control              MS </span></span>
-<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;              28              39</span></span></code></pre></div>
+<div class="sourceCode" id="cb19"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>keep <span class="ot">&lt;-</span> gse<span class="sc">$</span>sample_id[gse<span class="sc">$</span>condition <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">&quot;Healthy Control&quot;</span>, <span class="st">&quot;MS&quot;</span>)]</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>g_sub <span class="ot">&lt;-</span> <span class="fu">subset_graph</span>(g, <span class="at">samples =</span> keep, <span class="at">graph_name =</span> <span class="st">&quot;GSE60424: HC vs MS&quot;</span>)</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(g_sub)<span class="sc">$</span>node_types</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     value  n</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1  Sample 67</span></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2   Batch 10</span></span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3 Subject 10</span></span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 4  Region  7</span></span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 5 Outcome  2</span></span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>spec_sub <span class="ot">&lt;-</span> <span class="fu">as_split_spec</span>(<span class="fu">derive_split_constraints</span>(g_sub, <span class="st">&quot;subject&quot;</span>), <span class="at">graph =</span> g_sub)</span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a><span class="fu">table</span>(spec_sub<span class="sc">$</span>sample_data<span class="sc">$</span>stratum)</span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Healthy Control              MS </span></span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;              28              39</span></span></code></pre></div>
 </div>
 <div id="handing-off" class="section level2">
 <h2>Handing off</h2>
-<div class="sourceCode" id="cb17"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>out <span class="ot">&lt;-</span> <span class="fu">tempfile</span>(<span class="at">fileext =</span> <span class="st">&quot;.json&quot;</span>)</span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="fu">write_split_spec</span>(spec, out)</span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="fu">validate_split_spec_json</span>(out)<span class="sc">$</span>valid</span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] TRUE</span></span>
-<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a><span class="fu">unlink</span>(out)</span></code></pre></div>
+<div class="sourceCode" id="cb20"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>out <span class="ot">&lt;-</span> <span class="fu">tempfile</span>(<span class="at">fileext =</span> <span class="st">&quot;.json&quot;</span>)</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="fu">write_split_spec</span>(spec, out)</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a><span class="fu">validate_split_spec_json</span>(out)<span class="sc">$</span>valid</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] TRUE</span></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a><span class="fu">unlink</span>(out)</span></code></pre></div>
 <p>The JSON carries the grouping, the blocking columns, the stratum, and the provenance (<code>metadata$relations_used</code>, <code>splitgraph_version</code>, <code>derived_at</code>), so the decision “one donor never straddles a fold” is recorded once and can be executed anywhere.</p>
 </div>
 

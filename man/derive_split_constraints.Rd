@@ -10,12 +10,13 @@ derive_split_constraints(
   mode = c("subject", "batch", "study", "time", "site", "region", "platform", "assay",
     "relatedness", "spatial", "composite"),
   samples = NULL,
-  strategy = c("strict", "rule_based"),
+  strategy = c("strict", "rule_based", "min_cut"),
   via = NULL,
   priority = NULL,
   time_ordering = FALSE,
   min_weight = NULL,
   max_distance = NULL,
+  k = 2L,
   include_warnings = TRUE
 )
 
@@ -61,6 +62,11 @@ to \code{subject_related_to} edges when \code{mode = "relatedness"} or
 \item{max_distance}{Optional numeric maximum distance threshold applied to
 \code{sample_adjacent_to} edges when \code{mode = "spatial"} or
 \code{mode = "composite"}.}
+
+\item{k}{Target number of cross-validation folds (integer \code{>= 2},
+default \code{2L}) used when \code{mode = "composite"} and
+\code{strategy = "min_cut"} to determine when to stop severing secondary
+bridge entities.}
 
 \item{include_warnings}{Whether to retain human-readable warnings in the
 returned metadata.}
@@ -141,6 +147,21 @@ Constraint derivation rules:
   sample by the highest-priority available dependency source.
   Lower-priority available dependencies are retained in the explanation
   field.}
+
+  \item{\code{mode = "composite"}, \code{strategy = "min_cut"}}{Keeps the
+  hard sample-identity must-links (\code{"subject"} and \code{"relatedness"},
+  when in \code{via}) as units that are never split; every other relation
+  in \code{via} is relaxable, whatever its position. Starting from the
+  must-link grouping, it adds back secondary dependency entities (a batch,
+  study, site, ... node, or a single spatial/pairwise edge), most samples
+  linked first, as long as the grouping stays \code{k}-feasible: at least
+  \code{k} groups and none larger than \code{1.5 * n / k} samples. Entities
+  that could not be added back are severed and listed in
+  \code{metadata$severed_bridges}; \code{metadata$target_reached} records
+  whether \code{k} was reached. If the must-links alone cannot reach
+  \code{k}, it returns the best grouping they allow (severing only entities
+  that merge must-link units) with a
+  \code{splitGraph_target_unreachable_warning}.}
 }
 
 The returned \code{split_constraint$sample_map} always contains

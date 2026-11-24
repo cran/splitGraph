@@ -87,3 +87,42 @@ test_that("Python reference consumer reproduces R grouping and order_rank", {
   py_strata <- unlist(py$strata)
   expect_identical(py_strata[names(r_strata)], r_strata[names(r_strata)])
 })
+
+test_that("Python reader reads a schema 0.4.0 min_cut spec: grouping, block_vars, warnings", {
+  cfg <- skip_if_no_python_conformance()
+
+  meta <- data.frame(
+    sample_id  = paste0("S", 1:6),
+    subject_id = paste0("P", c(1, 1, 2, 2, 3, 3)),
+    batch_id   = c("B1", "B1", "B2", "B_bridge", "B_bridge", "B3"),
+    stringsAsFactors = FALSE
+  )
+  g <- graph_from_metadata(meta)
+  constraint <- derive_split_constraints(g, mode = "composite", strategy = "min_cut",
+                                         via = c("subject", "batch"), k = 3L)
+  spec <- as_split_spec(constraint, graph = g)
+
+  in_path  <- tempfile(fileext = ".json")
+  out_path <- tempfile(fileext = ".json")
+  on.exit(unlink(c(in_path, out_path)), add = TRUE)
+  write_split_spec(spec, in_path)
+
+  status <- suppressWarnings(system2(
+    cfg$py, c("-B", shQuote(cfg$script), shQuote(in_path), shQuote(out_path)),
+    stdout = TRUE, stderr = TRUE
+  ))
+  expect_null(attr(status, "status"))
+  py <- jsonlite::fromJSON(out_path, simplifyVector = TRUE)
+
+  expect_identical(py$schema_version, "0.4.0")
+  expect_identical(py$constraint_strategy, "min_cut")
+  # Severed axes are not offered for blocking, on either side of the seam.
+  expect_identical(as.character(py$block_vars), as.character(spec$block_vars))
+  expect_false("batch_group" %in% py$block_vars)
+  expect_identical(as.character(py$warnings), as.character(spec$metadata$warnings))
+  expect_true(any(grepl("min_cut severed", py$warnings, fixed = TRUE)))
+
+  r_grouping <- grouping_vector(constraint)
+  py_grouping <- unlist(py$grouping)
+  expect_identical(py_grouping[names(r_grouping)], r_grouping[names(r_grouping)])
+})

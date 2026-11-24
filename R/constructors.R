@@ -168,7 +168,9 @@ split_constraint <- function(strategy, sample_map, recommended_downstream_args =
 #' @param sample_data Sample-level mapping table carried by a
 #'   \code{split_spec}.
 #' @param group_var Name of the grouping column.
-#' @param block_vars Optional blocking variable names.
+#' @param block_vars Optional names of \code{sample_data} columns carrying
+#'   blocking annotations available to consumers (not axes the split already
+#'   enforces; see \code{\link{as_split_spec}}).
 #' @param time_var Optional ordering column name.
 #' @param stratum_var Optional name of the column carrying the stratum
 #'   annotation (the outcome level each sample carries). An annotation only:

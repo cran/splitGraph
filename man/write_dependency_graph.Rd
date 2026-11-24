@@ -52,14 +52,14 @@ read JSON can interpret the format).
 
 \preformatted{
 {
-  "$schema": "https://.../inst/schema/0.3.0/dependency_graph.schema.json",
+  "$schema": "https://.../inst/schema/0.4.0/dependency_graph.schema.json",
   "splitGraph_object": "dependency_graph",
-  "schema_version": "0.3.0",
+  "schema_version": "0.4.0",
   "metadata": {
     "graph_name": "...",
     "dataset_name": "...",
     "created_at": "2026-04-29T10:11:12.000000+0000",
-    "schema_version": "0.3.0",
+    "schema_version": "0.4.0",
     "validation_overrides": { ... },
     "edge_sources": {
       "subject_related_to": { "relation": "...", "from_col": "...",

@@ -34,7 +34,7 @@ test_that("written JSON carries a $schema reference and the current version", {
 
   raw <- jsonlite::fromJSON(tmp, simplifyVector = FALSE)
   expect_match(raw$`$schema`, "dependency_graph\\.schema\\.json$")
-  expect_identical(raw$schema_version, "0.3.0")
+  expect_identical(raw$schema_version, "0.4.0")
   expect_identical(raw$schema_version, splitGraph:::.depgraph_schema_version)
 })
 
@@ -160,7 +160,7 @@ test_that("migrate_split_spec_json upgrades an old-version file to current", {
   migrate_split_spec_json(tmp)
 
   raw <- jsonlite::fromJSON(tmp, simplifyVector = FALSE)
-  expect_identical(raw$schema_version, "0.3.0")
+  expect_identical(raw$schema_version, "0.4.0")
   expect_match(raw$`$schema`, "split_spec\\.schema\\.json$")
   # New columns are now present in every row.
   row1 <- raw$sample_data[[1L]]
@@ -262,7 +262,7 @@ test_that("migrate_dependency_graph_json upgrades an old-version graph file", {
   migrate_dependency_graph_json(tmp)
 
   out <- jsonlite::fromJSON(tmp, simplifyVector = FALSE)
-  expect_identical(out$schema_version, "0.3.0")
+  expect_identical(out$schema_version, "0.4.0")
   expect_match(out[["$schema"]], "dependency_graph\\.schema\\.json$")
   expect_true(validate_graph_json(tmp)$valid)
 })
@@ -346,7 +346,7 @@ test_that("read_*(validate = TRUE) rejects non-conforming or invalid files with 
   expect_error(read_split_spec(bad_sp, validate = TRUE), class = "splitgraph_schema_error")
 })
 
-test_that("a 0.2.0 split_spec (no stratum) loads silently and migrates to 0.3.0", {
+test_that("a 0.2.0 split_spec (no stratum) loads silently and migrates to the current schema", {
   skip_if_not_installed("jsonlite")
   meta <- data.frame(sample_id = c("S1", "S2"), subject_id = c("P1", "P2"), stringsAsFactors = FALSE)
   g <- graph_from_metadata(meta)
@@ -368,7 +368,106 @@ test_that("a 0.2.0 split_spec (no stratum) loads silently and migrates to 0.3.0"
   expect_null(old$stratum_var)
   migrate_split_spec_json(path)
   migrated <- jsonlite::fromJSON(path, simplifyVector = FALSE)
-  expect_identical(migrated$schema_version, "0.3.0")
-  expect_true(grepl("/0.3.0/", migrated[["$schema"]], fixed = TRUE))
+  expect_identical(migrated$schema_version, "0.4.0")
+  expect_true(grepl("/0.4.0/", migrated[["$schema"]], fixed = TRUE))
   expect_true("stratum" %in% names(migrated$sample_data[[1]]))
+})
+
+test_that("B15 / D04: validate_split_spec_json and validate_graph_json reject non-string metadata array elements and invalid metadata fields", {
+  skip_if_not_installed("jsonlite")
+  f_d04 <- tempfile(fileext = ".json")
+  on.exit(unlink(f_d04), add = TRUE)
+  writeLines(
+    '{"splitGraph_object":"split_spec","schema_version":"0.3.0","group_var":"group_id","metadata":{"via":[5],"n_samples":"two","enriched_from_graph":"yes"},"sample_data":[{"sample_id":"s","group_id":"g","order_rank":1}]}',
+    f_d04
+  )
+  rep_d04 <- validate_split_spec_json(f_d04)
+  expect_false(rep_d04$valid)
+  expect_true(any(grepl("metadata\\.via must be an array of strings", rep_d04$issues)))
+  expect_true(any(grepl("metadata\\.n_samples must be an integer or null", rep_d04$issues)))
+  expect_true(any(grepl("metadata\\.enriched_from_graph must be a boolean or null", rep_d04$issues)))
+
+  f_graph <- tempfile(fileext = ".json")
+  on.exit(unlink(f_graph), add = TRUE)
+  writeLines(
+    '{"splitGraph_object":"dependency_graph","schema_version":"0.3.0","metadata":{"edge_sources":{"subject_related_to":{"relation":5,"threshold":"high"}}},"nodes":[{"node_id":"sample:s1","node_type":"Sample","node_key":"s1","label":123}],"edges":[]}',
+    f_graph
+  )
+  rep_g <- validate_graph_json(f_graph)
+  expect_false(rep_g$valid)
+  expect_true(any(grepl("metadata\\.edge_sources\\.subject_related_to\\.relation must be a string", rep_g$issues)))
+  expect_true(any(grepl("metadata\\.edge_sources\\.subject_related_to\\.threshold must be a number or null", rep_g$issues)))
+  expect_true(any(grepl("node\\[1\\]: `label` must be a string or null", rep_g$issues)))
+})
+
+test_that("schema 0.4.0 ships versioned files and keeps the 0.3.0 ones", {
+  skip_if_no_jsonlite()
+  for (ver in c("0.3.0", "0.4.0")) {
+    for (obj in c("dependency_graph", "split_spec")) {
+      p <- splitGraph:::.depgraph_schema_path(obj, version = ver)
+      expect_true(nzchar(p), info = paste(ver, obj))
+      schema <- jsonlite::fromJSON(p, simplifyVector = FALSE)
+      expect_identical(schema$`$id`, splitGraph:::.depgraph_schema_url(obj, version = ver),
+                       info = paste(ver, obj))
+    }
+  }
+})
+
+test_that("0.3.0 -> 0.4.0: a 0.3.0 graph with temporal attributes and a 0.3.0 min_cut spec migrate", {
+  skip_if_no_jsonlite()
+  # Graph: a 0.3.0 file already carrying the attributes 0.4.0 documents loads
+  # silently, keeps them, gives the same verdicts, and migrates to 0.4.0.
+  meta <- data.frame(sample_id = c("S1", "S2"), subject_id = c("P1", "P2"),
+                     index_time = "2020-01-01", collection_time = c("2019-12-01", "2020-02-01"),
+                     stringsAsFactors = FALSE)
+  g <- graph_from_metadata(meta)
+  gp <- tempfile(fileext = ".json")
+  on.exit(unlink(gp), add = TRUE)
+  write_dependency_graph(g, gp)
+  raw <- jsonlite::fromJSON(gp, simplifyVector = FALSE)
+  raw$schema_version <- "0.3.0"
+  raw$metadata$schema_version <- "0.3.0"
+  raw[["$schema"]] <- splitGraph:::.depgraph_schema_url("dependency_graph", version = "0.3.0")
+  writeLines(jsonlite::toJSON(raw, auto_unbox = TRUE, null = "null", na = "null"), gp)
+  expect_true(validate_graph_json(gp)$valid)
+  expect_silent(old <- read_dependency_graph(gp))
+  flagged <- function(x) {
+    iss <- validate_graph(x)$issues
+    unique(unlist(iss$node_ids[iss$code == "feature_postdates_index_time"]))
+  }
+  expect_identical(flagged(old), "sample:S2")
+  migrate_dependency_graph_json(gp)
+  up <- jsonlite::fromJSON(gp, simplifyVector = FALSE)
+  expect_identical(up$schema_version, "0.4.0")
+  expect_identical(up[["$schema"]], splitGraph:::.depgraph_schema_url("dependency_graph", version = "0.4.0"))
+  expect_true(validate_graph_json(gp)$valid)
+  expect_identical(flagged(read_dependency_graph(gp)), "sample:S2")
+
+  # split_spec: a min_cut spec stamped 0.3.0 loads silently and migrates with
+  # its constraint_strategy, block_vars and warnings intact.
+  bmeta <- data.frame(sample_id = paste0("S", 1:6), subject_id = paste0("P", c(1, 1, 2, 2, 3, 3)),
+                      batch_id = c("B1", "B1", "B2", "B_bridge", "B_bridge", "B3"),
+                      stringsAsFactors = FALSE)
+  bg <- graph_from_metadata(bmeta)
+  con <- derive_split_constraints(bg, mode = "composite", strategy = "min_cut",
+                                  via = c("subject", "batch"), k = 3L)
+  spec <- as_split_spec(con, graph = bg)
+  expect_false("batch_group" %in% spec$block_vars)
+  sp <- tempfile(fileext = ".json")
+  on.exit(unlink(sp), add = TRUE)
+  write_split_spec(spec, sp)
+  sraw <- jsonlite::fromJSON(sp, simplifyVector = FALSE)
+  sraw$schema_version <- "0.3.0"
+  sraw[["$schema"]] <- splitGraph:::.depgraph_schema_url("split_spec", version = "0.3.0")
+  writeLines(jsonlite::toJSON(sraw, auto_unbox = TRUE, null = "null", na = "null"), sp)
+  expect_true(validate_split_spec_json(sp)$valid)
+  expect_silent(old_spec <- read_split_spec(sp))
+  expect_identical(old_spec$constraint_strategy, "min_cut")
+  migrate_split_spec_json(sp)
+  sup <- jsonlite::fromJSON(sp, simplifyVector = FALSE)
+  expect_identical(sup$schema_version, "0.4.0")
+  expect_identical(sup$constraint_strategy, "min_cut")
+  expect_identical(unlist(sup$block_vars), unlist(sraw$block_vars))
+  expect_identical(unlist(sup$metadata$warnings), unlist(sraw$metadata$warnings))
+  expect_true(validate_split_spec_json(sp)$valid)
 })

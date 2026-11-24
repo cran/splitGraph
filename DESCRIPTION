@@ -1,6 +1,6 @@
 Package: splitGraph
 Title: Dataset Dependency Graphs for Leakage-Aware Evaluation
-Version: 0.5.0
+Version: 0.6.0
 Authors@R: c(
     person("Selcuk", "Korkmaz", role = c("aut","cre"), email = "selcukorkmaz@gmail.com",
            comment = c(ORCID = "0000-0003-4632-6850"))
@@ -24,9 +24,9 @@ VignetteBuilder: knitr
 Config/testthat/edition: 3
 NeedsCompilation: no
 RoxygenNote: 7.3.3
-Packaged: 2026-11-05 11:14:07 UTC; selcukkorkmaz
+Packaged: 2026-11-24 13:28:09 UTC; selcukkorkmaz
 Author: Selcuk Korkmaz [aut, cre] (ORCID:
     <https://orcid.org/0000-0003-4632-6850>)
 Maintainer: Selcuk Korkmaz <selcukorkmaz@gmail.com>
 Repository: CRAN
-Date/Publication: 2026-11-05 11:40:02 UTC
+Date/Publication: 2026-11-24 14:00:02 UTC

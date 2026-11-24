@@ -427,13 +427,16 @@
   if (nrow(time_nodes) > 0L) {
     for (i in seq_len(nrow(time_nodes))) {
       value <- .depgraph_extract_attr(time_nodes$attrs[[i]], "time_index")
-      converted <- suppressWarnings(as.numeric(value))
-      if (!is.na(value) && is.na(converted)) {
+      has_raw_value <- !is.null(value) && length(value) > 0L &&
+        (!is.na(value[[1L]]) || is.nan(value[[1L]])) &&
+        (!is.character(value[[1L]]) || nzchar(trimws(value[[1L]])))
+      parsed <- .depgraph_parse_time_index(value)
+      if (has_raw_value && (length(parsed) == 0L || is.na(parsed[[1L]]))) {
         issues[[length(issues) + 1L]] <- .new_validation_issue(
           level = "semantic",
           severity = "warning",
           code = "invalid_time_index",
-          message = paste0("Timepoint node `", time_nodes$node_id[[i]], "` has a non-numeric `time_index`."),
+          message = paste0("Timepoint node `", time_nodes$node_id[[i]], "` has a non-numeric or non-finite `time_index`."),
           node_ids = time_nodes$node_id[[i]]
         )
       }
@@ -485,6 +488,162 @@
   }
 
   .depgraph_bind_issues(issues)
+}
+
+# Parse one temporal attribute value and record its unit, so that values are
+# only ever compared in the same unit (CLAUDE.md §3). Returns a list:
+#   value: seconds since the epoch for "date" / "datetime", seconds for
+#          "duration", the number as given for "numeric", NA when missing or
+#          unparseable;
+#   unit:  "date" (Date, "YYYY-MM-DD" string), "datetime" (POSIXct,
+#          "YYYY-MM-DD[T ]HH:MM[:SS[.fff]]" string with optional Z / +-HH:MM
+#          offset; without one it is taken as UTC), "duration" (difftime or
+#          ISO 8601 duration string with fixed-length units W/D/H/M/S),
+#          "numeric" (a bare number or numeric string, unit unknown),
+#          "unparseable" (present but none of these), or NA when missing
+#          (including non-finite values, which JSON writes as null);
+#   day:   for "date" / "datetime", the calendar day as written (days since the
+#          epoch, in the value's own time zone), used to compare a date with a
+#          date-time at day resolution.
+.depgraph_parse_temporal_scalar <- function(x) {
+  missing_value <- list(value = NA_real_, unit = NA_character_, day = NA_real_)
+  if (is.null(x) || length(x) == 0L) return(missing_value)
+  if (inherits(x, "difftime")) {
+    # `[[` drops the class (and so the unit) of a difftime.
+    secs <- as.numeric(x[1L], units = "secs")
+    if (!is.finite(secs)) return(missing_value)
+    return(list(value = secs, unit = "duration", day = NA_real_))
+  }
+  val <- x[[1L]]
+  if (is.factor(val)) val <- as.character(val)
+  if (length(val) != 1L || is.na(val)) return(missing_value)
+  if (inherits(val, "Date")) {
+    # A Date can carry a fractional day (e.g. a mean of Dates); it means the
+    # calendar date it prints as.
+    d <- floor(as.numeric(val))
+    if (!is.finite(d)) return(missing_value)
+    return(list(value = d * 86400, unit = "date", day = d))
+  }
+  if (inherits(val, "POSIXt")) {
+    if (!is.finite(as.numeric(as.POSIXct(val)))) return(missing_value)
+    tz <- attr(val, "tzone")
+    tz <- if (length(tz) && nzchar(tz[[1L]])) tz[[1L]] else ""
+    day <- as.numeric(as.Date(format(val, "%Y-%m-%d", tz = tz)))
+    return(list(value = as.numeric(as.POSIXct(val)), unit = "datetime", day = day))
+  }
+  unparseable <- list(value = NA_real_, unit = "unparseable", day = NA_real_)
+  if (is.numeric(val)) {
+    num <- as.numeric(val)
+    if (!is.finite(num)) return(missing_value)
+    return(list(value = num, unit = "numeric", day = NA_real_))
+  }
+  if (!is.character(val)) return(unparseable)
+  s <- trimws(val)
+  if (!nzchar(s)) return(missing_value)
+  num <- suppressWarnings(as.numeric(s))
+  if (!is.na(num)) {
+    if (!is.finite(num)) return(missing_value)
+    return(list(value = num, unit = "numeric", day = NA_real_))
+  }
+  s <- gsub("/", "-", s, fixed = TRUE)
+  # ISO-8601 date-time with 'T' or space separator and optional 'Z' or
+  # +/-HH:MM offset. Range-check hours (0..23), minutes (0..59), seconds
+  # ([0, 60)), and offset hours/minutes so malformed values never silently wrap
+  # or truncate in strptime.
+  iso_m <- regexec(
+    "^([0-9]{4}-[0-9]{1,2}-[0-9]{1,2})[T ]([0-9]{1,2}):([0-9]{2})(?::([0-9]{2}(?:\\.[0-9]+)?))?(Z|[+-][0-9]{2}:?[0-9]{2})?$",
+    s, perl = TRUE
+  )
+  parts <- regmatches(s, iso_m)[[1L]]
+  if (length(parts) >= 4L && nzchar(parts[2L]) && nzchar(parts[3L]) && nzchar(parts[4L])) {
+    h_val <- as.numeric(parts[3L])
+    m_val <- as.numeric(parts[4L])
+    has_sec <- length(parts) >= 5L && nzchar(parts[5L])
+    s_val <- if (has_sec) as.numeric(parts[5L]) else 0
+    if (h_val <= 23 && m_val <= 59 && s_val < 60) {
+      time_str <- if (has_sec) paste0(parts[3L], ":", parts[4L], ":", parts[5L]) else paste0(parts[3L], ":", parts[4L])
+      dt_str <- paste(parts[2L], time_str)
+      fmt <- if (has_sec) "%Y-%m-%d %H:%M:%OS" else "%Y-%m-%d %H:%M"
+      ts <- suppressWarnings(as.POSIXct(dt_str, format = fmt, tz = "UTC"))
+      if (!is.na(ts)) {
+        sec <- as.numeric(ts)
+        tz_part <- if (length(parts) >= 6L) parts[6L] else ""
+        if (nzchar(tz_part) && !identical(tz_part, "Z")) {
+          sgn <- if (startsWith(tz_part, "-")) -1 else 1
+          tz_clean <- gsub("[^0-9]", "", tz_part)
+          hh <- as.numeric(substr(tz_clean, 1L, 2L))
+          mm <- as.numeric(substr(tz_clean, 3L, 4L))
+          if (hh > 23 || mm > 59) return(unparseable)
+          sec <- sec - sgn * (hh * 3600 + mm * 60)
+        }
+        return(list(value = sec, unit = "datetime", day = as.numeric(as.Date(parts[2L]))))
+      }
+    }
+  }
+  if (grepl("^[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}$", s)) {
+    dt <- tryCatch(as.Date(s, format = "%Y-%m-%d"), error = function(e) as.Date(NA))
+    if (!is.na(dt)) {
+      d <- as.numeric(dt)
+      return(list(value = d * 86400, unit = "date", day = d))
+    }
+  }
+  # ISO-8601 duration with fixed-length units (W, D, H, M, S; optional sign).
+  # Years (Y) and months (M before T) are intentionally not parsed because
+  # their length in seconds is not fixed.
+  dur_w <- regexec("^([+-]?)P([0-9]+(?:\\.[0-9]+)?)W$", s, perl = TRUE)
+  w_parts <- regmatches(s, dur_w)[[1L]]
+  if (length(w_parts) == 3L && nzchar(w_parts[3L])) {
+    sgn <- if (identical(w_parts[2L], "-")) -1 else 1
+    sec <- sgn * as.numeric(w_parts[3L]) * 604800
+    if (!is.finite(sec)) return(missing_value)
+    return(list(value = sec, unit = "duration", day = NA_real_))
+  }
+  dur_m <- regexec(
+    "^([+-]?)P(?:([0-9]+(?:\\.[0-9]+)?)D)?(?:T(?:([0-9]+(?:\\.[0-9]+)?)H)?(?:([0-9]+(?:\\.[0-9]+)?)M)?(?:([0-9]+(?:\\.[0-9]+)?)S)?)?$",
+    s, perl = TRUE
+  )
+  d_parts <- regmatches(s, dur_m)[[1L]]
+  if (length(d_parts) == 6L) {
+    has_d <- nzchar(d_parts[3L])
+    has_t_comp <- any(nzchar(d_parts[4L:6L]))
+    has_t <- grepl("T", s, fixed = TRUE)
+    if ((has_d || has_t_comp) && (!has_t || has_t_comp)) {
+      sgn <- if (identical(d_parts[2L], "-")) -1 else 1
+      val_or_zero <- function(z) if (nzchar(z)) as.numeric(z) else 0
+      sec <- sgn * (
+        val_or_zero(d_parts[3L]) * 86400 +
+          val_or_zero(d_parts[4L]) * 3600 +
+          val_or_zero(d_parts[5L]) * 60 +
+          val_or_zero(d_parts[6L])
+      )
+      if (!is.finite(sec)) return(missing_value)
+      return(list(value = sec, unit = "duration", day = NA_real_))
+    }
+  }
+  unparseable
+}
+
+# Order two parsed temporal values: sign of (a - b), with how it was decided.
+#   status "same":           same unit, compared exactly;
+#   status "day_resolution": a date against a date-time, compared by calendar
+#                            day (equal days give 0);
+#   status "mismatch":       a bare number against a date / date-time, or an
+#                            unparseable value against anything present; not
+#                            comparable, sign is NA;
+#   status "missing":        either side missing, sign is NA.
+.depgraph_temporal_order <- function(a, b) {
+  if (is.na(a$unit) || is.na(b$unit)) return(list(sign = NA_real_, status = "missing"))
+  if ("unparseable" %in% c(a$unit, b$unit)) return(list(sign = NA_real_, status = "mismatch"))
+  if (identical(a$unit, b$unit)) return(list(sign = sign(a$value - b$value), status = "same"))
+  if (all(c(a$unit, b$unit) %in% c("date", "datetime"))) {
+    return(list(sign = sign(a$day - b$day), status = "day_resolution"))
+  }
+  list(sign = NA_real_, status = "mismatch")
+}
+
+.depgraph_temporal_unit_label <- function(unit) {
+  switch(unit, date = "a date", datetime = "a date-time", numeric = "a bare number", duration = "a time span (difftime)",
+         unparseable = "text that is not a date, date-time or number", unit)
 }
 
 .validate_leakage <- function(graph) {
@@ -607,12 +766,10 @@
       time_nodes$attrs,
       function(x) {
         value <- .depgraph_extract_attr(x, "time_index")
-        if (length(value) == 0L || is.na(value)) {
-          return(NA_character_)
-        }
-        as.character(value)
+        parsed <- .depgraph_parse_time_index(value)
+        if (length(parsed) == 0L) NA_real_ else parsed[[1L]]
       },
-      FUN.VALUE = character(1)
+      FUN.VALUE = numeric(1)
     )
     if (!has_precedes && (length(time_indices) == 0L || all(is.na(time_indices)))) {
       issues[[length(issues) + 1L]] <- .new_validation_issue(
@@ -640,6 +797,377 @@
         node_ids = as.list(batch_ids),
         edge_ids = edges_by_batch[batch_ids]
       )
+    }
+  }
+
+  # FeatureSet provenance contamination. Leak condition: a FeatureSet derived
+  # from a source Study/Batch is used both by samples of that source (which
+  # are in this dataset and can be evaluated) and by samples outside it. A FeatureSet from a source with no samples here (external
+  # knowledge, e.g. a published signature) is not flagged. In-sample use only
+  # (derived from and used on the same source) is covered by
+  # `shared_featureset_provenance`.
+  fs_study_edges <- edge_data[edge_data$edge_type == "featureset_generated_from_study", c("edge_id", "from", "to"), drop = FALSE]
+  if (nrow(fs_study_edges) > 0L && nrow(feature_edges) > 0L) {
+    sample_study_map <- if (nrow(study_edges) > 0L) {
+      split(study_edges$to, study_edges$from)
+    } else {
+      list()
+    }
+    study_sample_map <- if (nrow(study_edges) > 0L) {
+      split(study_edges$from, study_edges$to)
+    } else {
+      list()
+    }
+    for (f_id in unique(fs_study_edges$from)) {
+      src_studies <- unique(fs_study_edges$to[fs_study_edges$from == f_id])
+      u_samples <- unique(feature_edges$from[feature_edges$to == f_id])
+      if (length(u_samples) == 0L) next
+      active_src <- src_studies[vapply(src_studies, function(st) {
+        length(intersect(u_samples, study_sample_map[[st]] %||% character())) > 0L
+      }, logical(1))]
+      if (length(active_src) == 0L) next
+      # Leak: the FeatureSet features samples of at least one of its source
+      # studies (which can be evaluated) and is also used by samples outside
+      # that source study (including when pooled across multiple in-data
+      # studies). Used only outside its sources, or only within a single source
+      # study, is not flagged here.
+      outside_samples <- u_samples[vapply(u_samples, function(s) {
+        s_st <- sample_study_map[[s]] %||% character()
+        any(!active_src %in% s_st)
+      }, logical(1))]
+      src_samples <- unique(unlist(study_sample_map[active_src], use.names = FALSE))
+      if (length(outside_samples) > 0L) {
+        aff_nodes <- unique(c(f_id, src_studies, src_samples, u_samples))
+        aff_edges <- unique(c(
+          fs_study_edges$edge_id[fs_study_edges$from == f_id],
+          feature_edges$edge_id[feature_edges$to == f_id & feature_edges$from %in% outside_samples]
+        ))
+        issues[[length(issues) + 1L]] <- .new_validation_issue(
+          level = "leakage",
+          severity = "warning",
+          code = "cross_study_featureset_contamination",
+          message = paste0(
+            "FeatureSet `", f_id, "` generated from ",
+            paste(src_studies, collapse = ", "),
+            " is used by sample(s) outside its source study (",
+            paste(outside_samples, collapse = ", "),
+            ") while the source study's own samples are also in the data (",
+            length(src_samples), " sample(s)); if the FeatureSet was derived using those ",
+            "samples, evaluating them is not independent of how features were chosen."
+          ),
+          node_ids = aff_nodes,
+          edge_ids = aff_edges
+        )
+      }
+    }
+  }
+
+  fs_batch_edges <- edge_data[edge_data$edge_type == "featureset_generated_from_batch", c("edge_id", "from", "to"), drop = FALSE]
+  if (nrow(fs_batch_edges) > 0L && nrow(feature_edges) > 0L) {
+    sample_batch_map <- if (nrow(batch_edges) > 0L) {
+      split(batch_edges$to, batch_edges$from)
+    } else {
+      list()
+    }
+    batch_sample_map <- if (nrow(batch_edges) > 0L) {
+      split(batch_edges$from, batch_edges$to)
+    } else {
+      list()
+    }
+    for (f_id in unique(fs_batch_edges$from)) {
+      src_batches <- unique(fs_batch_edges$to[fs_batch_edges$from == f_id])
+      u_samples <- unique(feature_edges$from[feature_edges$to == f_id])
+      if (length(u_samples) == 0L) next
+      active_src <- src_batches[vapply(src_batches, function(bt) {
+        length(intersect(u_samples, batch_sample_map[[bt]] %||% character())) > 0L
+      }, logical(1))]
+      if (length(active_src) == 0L) next
+      # Leak: the FeatureSet features samples of at least one of its source
+      # batches (which can be evaluated) and is also used by samples outside
+      # that source batch (including when pooled across multiple in-data
+      # batches). Used only outside its sources, or only within a single source
+      # batch, is not flagged here.
+      outside_samples <- u_samples[vapply(u_samples, function(s) {
+        s_bt <- sample_batch_map[[s]] %||% character()
+        any(!active_src %in% s_bt)
+      }, logical(1))]
+      src_samples <- unique(unlist(batch_sample_map[active_src], use.names = FALSE))
+      if (length(outside_samples) > 0L) {
+        aff_nodes <- unique(c(f_id, src_batches, src_samples, u_samples))
+        aff_edges <- unique(c(
+          fs_batch_edges$edge_id[fs_batch_edges$from == f_id],
+          feature_edges$edge_id[feature_edges$to == f_id & feature_edges$from %in% outside_samples]
+        ))
+        issues[[length(issues) + 1L]] <- .new_validation_issue(
+          level = "leakage",
+          severity = "warning",
+          code = "cross_batch_featureset_contamination",
+          message = paste0(
+            "FeatureSet `", f_id, "` generated from ",
+            paste(src_batches, collapse = ", "),
+            " is used by sample(s) outside its source batch (",
+            paste(outside_samples, collapse = ", "),
+            ") while the source batch's own samples are also in the data (",
+            length(src_samples), " sample(s)); if the FeatureSet was derived using those ",
+            "samples, evaluating them is not independent of how features were chosen."
+          ),
+          node_ids = aff_nodes,
+          edge_ids = aff_edges
+        )
+      }
+    }
+  }
+
+  # Clinical timeline checks against each sample's index date (t0). Leak
+  # conditions and limits are documented in ?build_dependency_graph
+  # ("Timeline rules"). Timestamps are compared only in the same unit
+  # (`.depgraph_temporal_order()`); pairs in different units are reported as
+  # `temporal_unit_mismatch` instead of being compared.
+  sample_rows <- node_data[node_data$node_type == "Sample", , drop = FALSE]
+  if (nrow(sample_rows) > 0L) {
+    # First present (non-missing) attribute among `keys`, with its label. An
+    # unparseable value counts as present, so it is reported, not skipped.
+    first_time <- function(attrs, keys, node_type, node_id = NULL) {
+      for (k in keys) {
+        # The raw attribute, not .depgraph_extract_attr(): its `[[1L]]` drops
+        # the class of a difftime.
+        p <- .depgraph_parse_temporal_scalar(attrs[[k]])
+        if (!is.na(p$unit)) {
+          p$attr <- k
+          p$node_type <- node_type
+          p$node_id <- node_id
+          p$label <- if (is.null(node_id)) {
+            paste0("`", k, "`")
+          } else {
+            paste0("`", k, "` of ", node_type, " `", node_id, "`")
+          }
+          return(p)
+        }
+      }
+      NULL
+    }
+    times_by_node <- function(rows, keys, node_type) {
+      out <- lapply(seq_len(nrow(rows)), function(i) {
+        first_time(rows$attrs[[i]], keys, node_type, rows$node_id[[i]])
+      })
+      names(out) <- rows$node_id
+      Filter(Negate(is.null), out)
+    }
+    fs_time <- times_by_node(feature_nodes, c("feature_window_end", "collection_time"), "FeatureSet")
+    outcome_nodes <- node_data[node_data$node_type == "Outcome", , drop = FALSE]
+    out_time <- times_by_node(outcome_nodes, c("outcome_time", "event_time"), "Outcome")
+
+    # Hashed lookups: `named_list[[id]]` scans the names, which made this
+    # per-sample loop quadratic on large cohorts.
+    as_lookup <- function(x) list2env(as.list(x), parent = emptyenv(), hash = TRUE)
+    get_ids <- function(env, ids) {
+      unlist(lapply(ids, function(id) get0(id, envir = env, inherits = FALSE)), use.names = FALSE)
+    }
+    fs_time_env <- as_lookup(fs_time)
+    out_time_env <- as_lookup(out_time)
+    out_edges <- edge_data[edge_data$edge_type == "sample_has_outcome", c("edge_id", "from", "to"), drop = FALSE]
+    subj_out_edges <- edge_data[edge_data$edge_type == "subject_has_outcome", c("edge_id", "from", "to"), drop = FALSE]
+    sample_fs_map <- as_lookup(split(feature_edges$to, feature_edges$from))
+    sample_out_map <- as_lookup(split(out_edges$to, out_edges$from))
+    sample_subj_map <- as_lookup(split(subject_edges$to, subject_edges$from))
+    subj_out_map <- as_lookup(split(subj_out_edges$to, subj_out_edges$from))
+
+    # One slot per sample, filled in place: growing these vectors with c()
+    # was quadratic in the number of flagged samples.
+    n_samples <- nrow(sample_rows)
+    postdate_msgs <- rep(NA_character_, n_samples)
+    postdate_nodes <- vector("list", n_samples)
+    order_msgs <- rep(NA_character_, n_samples)
+    order_nodes <- vector("list", n_samples)
+    # Pairs not compared exactly (different units, or day resolution). Each is
+    # keyed by (status, attribute, unit, attribute, unit); the key's
+    # description lives in `pair_meta`, and each sample's hits are collected in
+    # per-sample slots and combined once after the loop, so the bookkeeping
+    # stays linear in the number of samples.
+    pair_meta <- new.env(parent = emptyenv())
+    hit_keys <- vector("list", nrow(sample_rows))
+    hit_nodes <- vector("list", nrow(sample_rows))
+    pair_key <- function(a, b, status, code) {
+      if (!status %in% c("mismatch", "day_resolution")) return(NULL)
+      ga <- if (is.null(a$node_id)) paste0("Sample `", a$attr, "`") else paste0(a$node_type, " `", a$attr, "`")
+      gb <- if (is.null(b$node_id)) paste0("Sample `", b$attr, "`") else paste0(b$node_type, " `", b$attr, "`")
+      key <- paste(status, ga, a$unit, gb, b$unit, sep = "\r")
+      m <- pair_meta[[key]] %||% list(
+        status = status, a = ga, a_unit = a$unit, b = gb, b_unit = b$unit, codes = character()
+      )
+      if (!code %in% m$codes) {
+        m$codes <- c(m$codes, code)
+        assign(key, m, envir = pair_meta)
+      }
+      key
+    }
+
+    for (i in seq_len(nrow(sample_rows))) {
+      sid <- sample_rows$node_id[[i]]
+      s_attrs <- sample_rows$attrs[[i]]
+      keys_i <- character()
+      nodes_i <- character()
+      note_pair <- function(x, y, status, code) {
+        k <- pair_key(x, y, status, code)
+        if (!is.null(k)) {
+          keys_i <<- c(keys_i, k)
+          other <- c(x$node_id, y$node_id)
+          if (length(other) > 0L) nodes_i <<- c(nodes_i, paste0(k, "\n", other))
+        }
+      }
+      t_idx <- first_time(s_attrs, "index_time", "Sample")
+      t_col <- first_time(s_attrs, "collection_time", "Sample")
+      linked_fs <- unique(get_ids(sample_fs_map, sid))
+      fs_refs <- lapply(linked_fs, function(f) get0(f, envir = fs_time_env, inherits = FALSE))
+      fs_refs <- Filter(Negate(is.null), fs_refs)
+      predictor_times <- c(if (!is.null(t_col)) list(t_col), fs_refs)
+
+      # Rule 1 (feature_postdates_index_time): a predictor timestamp (sample
+      # collection_time, or the window end of a linked FeatureSet) is later
+      # than the sample's index_time. Equal timestamps are allowed.
+      if (!is.null(t_idx) && length(predictor_times) > 0L) {
+        late <- character()
+        late_nodes <- character()
+        for (r in predictor_times) {
+          o <- .depgraph_temporal_order(r, t_idx)
+          note_pair(r, t_idx, o$status, "feature_postdates_index_time")
+          if (isTRUE(o$sign > 0)) {
+            late <- c(late, r$label)
+            late_nodes <- c(late_nodes, r$node_id)
+          }
+        }
+        if (length(late) > 0L) {
+          postdate_msgs[[i]] <- paste0(
+            "Sample `", sid, "`: ", paste(late, collapse = ", "),
+            if (length(late) == 1L) " is" else " are",
+            " later than `index_time` (predictor data recorded after the index date; look-ahead)."
+          )
+          postdate_nodes[[i]] <- unique(c(sid, late_nodes))
+        }
+      }
+
+      # Rule 2 (outcome_precedes_index_time): the outcome timestamp (the
+      # sample's own outcome_time / event_time, else those of its linked
+      # Outcome nodes) is earlier than the index_time or a predictor timestamp.
+      t_own <- first_time(s_attrs, c("outcome_time", "event_time"), "Sample")
+      outcome_times <- if (!is.null(t_own)) {
+        list(t_own)
+      } else if (length(out_time) > 0L) {
+        linked_out <- unique(c(
+          get_ids(sample_out_map, sid),
+          get_ids(subj_out_map, get_ids(sample_subj_map, sid))
+        ))
+        Filter(Negate(is.null), lapply(linked_out, function(o) get0(o, envir = out_time_env, inherits = FALSE)))
+      } else {
+        list()
+      }
+      ref_times <- c(if (!is.null(t_idx)) list(t_idx), predictor_times)
+      if (length(outcome_times) > 0L && length(ref_times) > 0L) {
+        early <- character()
+        early_nodes <- character()
+        for (ot in outcome_times) {
+          before <- character()
+          for (r in ref_times) {
+            o <- .depgraph_temporal_order(ot, r)
+            note_pair(ot, r, o$status, "outcome_precedes_index_time")
+            if (isTRUE(o$sign < 0)) {
+              before <- c(before, r$label)
+              early_nodes <- c(early_nodes, ot$node_id)
+            }
+          }
+          if (length(before) > 0L) {
+            early <- c(early, paste0(ot$label, " is earlier than ", paste(before, collapse = ", ")))
+          }
+        }
+        if (length(early) > 0L) {
+          order_msgs[[i]] <- paste0(
+            "Sample `", sid, "`: ", paste(early, collapse = "; "),
+            " (outcome dated before the index date or the predictor data; timestamp ordering violation)."
+          )
+          order_nodes[[i]] <- unique(c(sid, early_nodes))
+        }
+      }
+      if (length(keys_i) > 0L) {
+        hit_keys[[i]] <- unique(keys_i)
+        hit_nodes[[i]] <- unique(nodes_i)
+      }
+    }
+
+    hit <- !is.na(postdate_msgs)
+    if (any(hit)) {
+      issues[[length(issues) + 1L]] <- .new_validation_issues(
+        level = "leakage",
+        severity = "warning",
+        code = "feature_postdates_index_time",
+        messages = postdate_msgs[hit],
+        node_ids = postdate_nodes[hit]
+      )
+    }
+    hit <- !is.na(order_msgs)
+    if (any(hit)) {
+      issues[[length(issues) + 1L]] <- .new_validation_issues(
+        level = "leakage",
+        severity = "warning",
+        code = "outcome_precedes_index_time",
+        messages = order_msgs[hit],
+        node_ids = order_nodes[hit]
+      )
+    }
+
+    all_keys <- unlist(hit_keys, use.names = FALSE)
+    if (length(all_keys) > 0L) {
+      show_ids <- function(ids) {
+        shown <- paste(utils::head(ids, 10L), collapse = ", ")
+        if (length(ids) > 10L) paste0(shown, ", and ", length(ids) - 10L, " more") else shown
+      }
+      key_samples <- split(rep(sample_rows$node_id, lengths(hit_keys)), all_keys)
+      extra <- unlist(hit_nodes, use.names = FALSE)
+      extra_key <- sub("\n.*$", "", extra)
+      extra_node <- sub("^[^\n]*\n", "", extra)
+      key_extra <- split(extra_node, factor(extra_key, levels = names(key_samples)))
+      unit_pairs <- lapply(sort(names(key_samples)), function(k) {
+        e <- pair_meta[[k]]
+        e$samples <- unique(key_samples[[k]])
+        e$nodes <- unique(c(e$samples, key_extra[[k]]))
+        e
+      })
+      mism <- Filter(function(e) identical(e$status, "mismatch"), unit_pairs)
+      coarse <- Filter(function(e) identical(e$status, "day_resolution"), unit_pairs)
+      if (length(mism) > 0L) {
+        issues[[length(issues) + 1L]] <- .new_validation_issues(
+          level = "leakage",
+          severity = "warning",
+          code = "temporal_unit_mismatch",
+          messages = vapply(mism, function(e) {
+            paste0(
+              "Timestamps in different units were not compared: ", e$a, " (",
+              .depgraph_temporal_unit_label(e$a_unit), ") vs ", e$b, " (",
+              .depgraph_temporal_unit_label(e$b_unit), ") for ", length(e$samples),
+              " sample(s) (", show_ids(e$samples), "), so ",
+              paste(e$codes, collapse = " and "), " was not checked for these pairs. ",
+              "A bare number has no calendar unit: record both as dates or date-times, ",
+              "or both as numbers in the same unit."
+            )
+          }, character(1)),
+          node_ids = lapply(mism, `[[`, "nodes")
+        )
+      }
+      if (length(coarse) > 0L) {
+        issues[[length(issues) + 1L]] <- .new_validation_issues(
+          level = "leakage",
+          severity = "advisory",
+          code = "temporal_resolution_mismatch",
+          messages = vapply(coarse, function(e) {
+            paste0(
+              e$a, " (", .depgraph_temporal_unit_label(e$a_unit), ") and ", e$b, " (",
+              .depgraph_temporal_unit_label(e$b_unit), ") were compared at day resolution for ",
+              length(e$samples), " sample(s) (", show_ids(e$samples), "): values on the same ",
+              "calendar day are not counted as earlier or later."
+            )
+          }, character(1)),
+          node_ids = lapply(coarse, `[[`, "nodes")
+        )
+      }
     }
   }
 

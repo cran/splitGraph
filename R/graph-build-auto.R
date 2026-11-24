@@ -227,10 +227,64 @@ graph_from_metadata.data.frame <- function(meta,
     )
   }
 
+  # Optional FeatureSet provenance edges from metadata columns
+  if ("featureset_id" %in% names(meta)) {
+    if ("featureset_study_id" %in% names(meta)) {
+      fs_st <- !is.na(meta$featureset_id) & nzchar(as.character(meta$featureset_id)) &
+        !is.na(meta$featureset_study_id) & nzchar(as.character(meta$featureset_study_id))
+      if (any(fs_st)) {
+        sub_fs_st <- meta[fs_st, , drop = FALSE]
+        # Only sources that are not already Study nodes from `study_id` (external
+        # sources, e.g. a published signature) get a node of their own.
+        ext_src <- if ("study_id" %in% names(meta)) {
+          !sub_fs_st$featureset_study_id %in% meta$study_id
+        } else {
+          rep(TRUE, nrow(sub_fs_st))
+        }
+        if (any(ext_src)) {
+          node_sets[[length(node_sets) + 1L]] <- create_nodes(
+            sub_fs_st[ext_src, , drop = FALSE], type = "Study", id_col = "featureset_study_id"
+          )
+        }
+        edge_sets[[length(edge_sets) + 1L]] <- create_edges(
+          sub_fs_st,
+          from_col = "featureset_id", to_col = "featureset_study_id",
+          from_type = "FeatureSet", to_type = "Study",
+          relation = "featureset_generated_from_study"
+        )
+      }
+    }
+    if ("featureset_batch_id" %in% names(meta)) {
+      fs_bt <- !is.na(meta$featureset_id) & nzchar(as.character(meta$featureset_id)) &
+        !is.na(meta$featureset_batch_id) & nzchar(as.character(meta$featureset_batch_id))
+      if (any(fs_bt)) {
+        sub_fs_bt <- meta[fs_bt, , drop = FALSE]
+        # Only sources that are not already Batch nodes from `batch_id` (external
+        # sources, e.g. a published signature) get a node of their own.
+        ext_src <- if ("batch_id" %in% names(meta)) {
+          !sub_fs_bt$featureset_batch_id %in% meta$batch_id
+        } else {
+          rep(TRUE, nrow(sub_fs_bt))
+        }
+        if (any(ext_src)) {
+          node_sets[[length(node_sets) + 1L]] <- create_nodes(
+            sub_fs_bt[ext_src, , drop = FALSE], type = "Batch", id_col = "featureset_batch_id"
+          )
+        }
+        edge_sets[[length(edge_sets) + 1L]] <- create_edges(
+          sub_fs_bt,
+          from_col = "featureset_id", to_col = "featureset_batch_id",
+          from_type = "FeatureSet", to_type = "Batch",
+          relation = "featureset_generated_from_batch"
+        )
+      }
+    }
+  }
+
   has_timepoint <- "timepoint_id" %in% names(meta) &&
     any(!is.na(meta$timepoint_id) & nzchar(as.character(meta$timepoint_id)))
   if (isTRUE(time_precedence) && has_timepoint && "time_index" %in% names(meta)) {
-    num_time_index <- suppressWarnings(as.numeric(as.character(meta$time_index)))
+    num_time_index <- .depgraph_parse_time_index(meta$time_index)
     tp_rows <- !is.na(meta$timepoint_id) & nzchar(as.character(meta$timepoint_id)) &
       !is.na(num_time_index)
     if (any(tp_rows)) {

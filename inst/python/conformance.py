@@ -23,6 +23,9 @@ def main(in_path, out_path):
     result = {
         "schema_version": spec.schema_version,
         "group_var": spec.group_var,
+        "block_vars": spec.block_vars,
+        "constraint_strategy": spec.constraint_strategy,
+        "warnings": list(spec.metadata.get("warnings") or []),
         "n_samples": len(spec.sample_data),
         "grouping": spec.grouping(),
         "order_ranks": dict(zip(spec.sample_ids, spec.order_ranks())),

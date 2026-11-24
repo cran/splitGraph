@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/selcukorkmaz/splitGraph/main/inst/schema/0.4.0/dependency_graph.schema.json",
+  "title": "splitGraph dependency_graph",
+  "description": "On-disk JSON format written by splitGraph::write_dependency_graph(). A typed dependency graph describing biomedical dataset structure. Schema version 0.4.0 (package 0.6.0): documents the optional temporal node attributes used by the timeline validation rules (Sample collection_time, index_time, outcome_time, event_time; FeatureSet feature_window_end, collection_time; Outcome outcome_time, event_time). Additive over 0.3.0.",
+  "type": "object",
+  "required": ["splitGraph_object", "schema_version", "nodes", "edges"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "splitGraph_object": { "const": "dependency_graph" },
+    "schema_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "graph_name": { "type": ["string", "null"] },
+        "dataset_name": { "type": ["string", "null"] },
+        "created_at": { "type": ["string", "null"] },
+        "schema_version": { "type": "string" },
+        "validation_overrides": { "type": "object" },
+        "edge_sources": {
+          "type": "object",
+          "description": "Provenance of each edge set that went into the graph, keyed by relation (edge_type). Records the source columns and, for thresholded pairwise relations, the threshold that was applied when the edges were built (kinship minimum for subject_related_to, distance maximum for sample_adjacent_to).",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "relation": { "type": "string" },
+              "from_col": { "type": ["string", "null"] },
+              "to_col": { "type": ["string", "null"] },
+              "threshold": { "type": ["number", "null"] },
+              "metric": { "type": ["string", "null"] }
+            }
+          }
+        }
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/node" }
+    },
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/edge" }
+    }
+  },
+  "$defs": {
+    "node": {
+      "type": "object",
+      "required": ["node_id", "node_type", "node_key"],
+      "properties": {
+        "node_id": { "type": "string" },
+        "node_type": {
+          "type": "string",
+          "enum": [
+            "Sample", "Subject", "Batch", "Study", "Timepoint",
+            "Assay", "FeatureSet", "Outcome", "Site", "Region", "Platform"
+          ]
+        },
+        "node_key": { "type": "string" },
+        "label": { "type": ["string", "null"] },
+        "attrs": {
+          "type": "object",
+          "description": "Node attributes (free-form). Temporal attributes read by the timeline rules (Sample collection_time, index_time, outcome_time, event_time; FeatureSet feature_window_end, collection_time; Outcome outcome_time, event_time) are a date string \"YYYY-MM-DD\", a date-time string \"YYYY-MM-DD[T ]HH:MM[:SS]\" with an optional Z or +HH:MM offset (UTC when absent), an ISO 8601 duration string with fixed-length units W/D/H/M/S (e.g. \"P1DT2H\", \"-PT30M\", \"PT0S\"; emitted by write_dependency_graph() for R difftime attributes), or a number of unspecified unit. Numbers are compared only with numbers and durations only with durations."
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "required": ["edge_id", "from", "to", "edge_type"],
+      "properties": {
+        "edge_id": { "type": "string" },
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "edge_type": {
+          "type": "string",
+          "enum": [
+            "sample_belongs_to_subject", "sample_processed_in_batch",
+            "sample_from_study", "sample_collected_at_timepoint",
+            "sample_measured_by_assay", "sample_uses_featureset",
+            "sample_has_outcome", "subject_has_outcome", "timepoint_precedes",
+            "featureset_generated_from_study", "featureset_generated_from_batch",
+            "sample_collected_at_site", "sample_located_in_region",
+            "sample_run_on_platform", "assay_uses_platform",
+            "subject_related_to", "sample_adjacent_to"
+          ]
+        },
+        "attrs": { "type": "object" }
+      }
+    }
+  }
+}

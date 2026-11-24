@@ -115,7 +115,7 @@
   if (identical(mode, "relatedness")) return("grouped_cv")
   if (identical(mode, "spatial")) return("grouped_cv")
   if (identical(mode, "time")) return("ordered_split")
-  if (identical(mode, "composite") && identical(strategy, "strict")) return("custom_grouped_cv")
+  if (identical(mode, "composite") && strategy %in% c("strict", "min_cut")) return("custom_grouped_cv")
   if (identical(mode, "composite") && identical(strategy, "rule_based")) return("grouped_cv")
   "grouped_cv"
 }
@@ -260,6 +260,18 @@
 #' \code{time_index}, \code{order_rank}). Missing but relevant fields are
 #' retained as \code{NA} columns rather than omitted.
 #'
+#' \code{block_vars} lists the blocking annotations available in
+#' \code{sample_data}: every block column with at least one non-missing value,
+#' whatever the constraint mode (a subject-mode spec can list
+#' \code{batch_group} and \code{study_group}). It describes what a consumer
+#' \emph{can} block or audit on, not what the split already enforces; the
+#' split is carried by \code{group_var}. Blocking on all of them at once can be
+#' infeasible, so consumers should choose (e.g.
+#' \code{bioLeak::as_leaksplits(use_block_constraints = "batch_group")}).
+#' Exception: for \code{strategy = "min_cut"}, axes on which bridges were
+#' severed are left out, because blocking on them would undo the min-cut; the
+#' accepted risk is recorded in \code{metadata$warnings}.
+#'
 #' \code{stratum} is filled from the graph when one is supplied: the key of the
 #' single \code{Outcome} node attached to a sample via
 #' \code{sample_has_outcome}, or, failing that, the single outcome attached to
@@ -305,7 +317,18 @@
 #'
 #' \code{summarize_leakage_risks()} reuses \code{validate_graph()} and
 #' \code{split_constraint} metadata rather than duplicating downstream
-#' evaluation logic.
+#' evaluation logic. When a \code{constraint} is supplied, validation issues for
+#' \code{repeated_subject_samples}, \code{subject_cross_study_overlap}, and
+#' \code{subject_cross_site_overlap} are checked directly against the actual
+#' group assignments of the issue's affected samples in
+#' \code{constraint$sample_map}: \code{severed} is \code{TRUE} when all
+#' affected samples have complete, usable assignments and share a single group,
+#' \code{FALSE} when observed assignments place affected samples in different
+#' groups, and \code{NA} when assignments are incomplete or insufficient to
+#' establish co-membership without an observed split. Other leakage warning
+#' codes without sample-level co-membership sets (such as
+#' \code{heavy_batch_reuse} and \code{missing_time_ordering}) are evaluated
+#' from the constraint mode and composite \code{via} metadata.
 #'
 #' @section What downstream consumers read:
 #' The \code{split_spec} contract is wider than any single consumer uses today.
@@ -440,6 +463,35 @@ as_split_spec <- function(constraint,
     block_vars <- c(block_vars, "assay_group")
   }
 
+  # min_cut deliberately severs secondary bridges (e.g. batch:B1). Declaring
+  # those axes as hard block_vars would let a consumer re-impose them and undo
+  # the min-cut, so they are left out; links on those axes that were not
+  # severed are still enforced through group_id. The accepted risk is recorded.
+  min_cut_warnings <- character()
+  if (identical(strategy, "min_cut")) {
+    sev <- as.character(constraint$metadata$severed_bridges %||% character())
+    sev_axes <- character()
+    if (length(sev) > 0L) {
+      if (!is.null(graph)) {
+        node_idx <- match(sev, graph$nodes$data$node_id)
+        matched_types <- tolower(as.character(graph$nodes$data$node_type[node_idx[!is.na(node_idx)]]))
+        sev_axes <- c(sev_axes, matched_types[matched_types != "sample"])
+      }
+      pref <- sev[grepl("^[A-Za-z_]+:", sev) & !startsWith(sev, "sample:")]
+      sev_axes <- unique(c(sev_axes, tolower(sub(":.*$", "", pref))))
+    }
+    unblocked <- intersect(paste0(sev_axes, "_group"), block_vars)
+    if (length(unblocked)) {
+      block_vars <- setdiff(block_vars, unblocked)
+      min_cut_warnings <- sprintf(paste0(
+        "min_cut severed %d bridge(s) on %s, so %s %s not declared as block_vars ",
+        "(re-imposing them would undo the min-cut). Samples sharing a severed entity ",
+        "(%s) can fall in different folds: accepted leakage risk."),
+        length(sev), paste(sev_axes, collapse = ", "), paste(unblocked, collapse = ", "),
+        if (length(unblocked) == 1L) "is" else "are", paste(sev, collapse = ", "))
+    }
+  }
+
   time_var <- if (!all(is.na(sample_data$order_rank))) "order_rank" else NULL
   stratum_var <- if (!all(is.na(sample_data$stratum))) "stratum" else NULL
   ordering_required <- isTRUE(constraint$recommended_downstream_args$ordering_required)
@@ -469,7 +521,8 @@ as_split_spec <- function(constraint,
       derived_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%OS6%z"),
       n_samples = nrow(sample_data),
       n_groups = length(unique(sample_data$group_id)),
-      warnings = c(constraint$metadata$warnings %||% character(), enrichment_warnings),
+      warnings = c(constraint$metadata$warnings %||% character(), enrichment_warnings,
+                   min_cut_warnings),
       enriched_from_graph = enrichment_used,
       enrichment_warnings = enrichment_warnings
     )
@@ -664,18 +717,68 @@ validate_split_spec <- function(x) {
 
   switch(
     as.character(code),
-    repeated_subject_samples     = subject_severed,
-    subject_cross_study_overlap  = subject_severed,
-    subject_cross_site_overlap   = subject_severed,
-    heavy_batch_reuse            = identical(mode, "batch") || composite_covers("batch"),
-    missing_time_ordering        = FALSE,
-    per_dataset_featureset       = FALSE,
-    shared_featureset_provenance = FALSE,
+    repeated_subject_samples               = subject_severed,
+    subject_cross_study_overlap            = subject_severed,
+    subject_cross_site_overlap             = subject_severed,
+    heavy_batch_reuse                      = identical(mode, "batch") || composite_covers("batch"),
+    cross_study_featureset_contamination   = FALSE,
+    cross_batch_featureset_contamination   = FALSE,
+    feature_postdates_index_time           = FALSE,
+    outcome_precedes_index_time            = FALSE,
+    # The timestamps were not compared (or only by calendar day), so no split
+    # mode can settle whether the ordering holds.
+    temporal_unit_mismatch                 = NA,
+    temporal_resolution_mismatch           = NA,
+    missing_time_ordering                  = FALSE,
+    per_dataset_featureset                 = FALSE,
+    shared_featureset_provenance           = FALSE,
     NA
   )
 }
 
-.leakage_summary_from_validation <- function(validation, constraint = NULL) {
+.leakage_issue_co_membership <- function(sample_nids, sample_map) {
+  if (length(sample_nids) < 2L || !is.data.frame(sample_map) ||
+      !all(c("sample_node_id", "group_id") %in% names(sample_map))) {
+    return(NA)
+  }
+  smap_nodes <- as.character(sample_map$sample_node_id)
+  smap_groups <- as.character(sample_map$group_id)
+
+  usable_groups <- character()
+  all_complete <- TRUE
+  for (s in sample_nids) {
+    idx <- which(!is.na(smap_nodes) & smap_nodes == s)
+    if (length(idx) == 0L) {
+      all_complete <- FALSE
+      next
+    }
+    vals <- smap_groups[idx]
+    valid_vals <- !is.na(vals) & nzchar(trimws(vals))
+    if (!all(valid_vals)) {
+      all_complete <- FALSE
+    }
+    u_vals <- unique(vals[valid_vals])
+    if (length(u_vals) > 1L) {
+      return(FALSE)
+    }
+    if (length(u_vals) == 1L) {
+      usable_groups <- c(usable_groups, u_vals)
+    } else {
+      all_complete <- FALSE
+    }
+  }
+
+  n_distinct <- length(unique(usable_groups))
+  if (n_distinct > 1L) {
+    return(FALSE)
+  }
+  if (all_complete && n_distinct == 1L) {
+    return(TRUE)
+  }
+  NA
+}
+
+.leakage_summary_from_validation <- function(validation, constraint = NULL, sample_node_ids = NULL, edge_data = NULL) {
   if (nrow(validation$issues) == 0L) {
     return(data.frame(
       severity = character(),
@@ -690,11 +793,51 @@ validate_split_spec <- function(x) {
 
   mode <- if (!is.null(constraint)) as.character(constraint$metadata$mode %||% NA) else NA_character_
   via_modes <- if (!is.null(constraint)) .depgraph_constraint_via_modes(constraint) else character()
+  smap <- if (!is.null(constraint)) constraint$sample_map else NULL
+  batch_samples_map <- if (!is.null(edge_data) && nrow(edge_data) > 0L) {
+    b_ed <- edge_data[edge_data$edge_type == "sample_processed_in_batch", c("from", "to"), drop = FALSE]
+    if (nrow(b_ed) > 0L) split(as.character(b_ed$from), as.character(b_ed$to)) else list()
+  } else {
+    list()
+  }
 
   severed <- vapply(
-    validation$issues$code,
-    function(code) {
-      .leakage_severed_by_constraint(code, mode = if (is.na(mode)) NULL else mode, via_modes = via_modes)
+    seq_len(nrow(validation$issues)),
+    function(i) {
+      if (is.null(constraint)) {
+        return(NA)
+      }
+      code <- as.character(validation$issues$code[[i]])
+      # FeatureSet contamination is never severed by a split: a FeatureSet derived
+      # from samples that are later evaluated is not independent of them in any
+      # fold (handled by .leakage_severed_by_constraint(), which returns FALSE).
+      is_min_cut_hbr <- identical(code, "heavy_batch_reuse") &&
+        identical(as.character(constraint$strategy %||% ""), "min_cut")
+      if (code %in% c("repeated_subject_samples", "subject_cross_study_overlap",
+                      "subject_cross_site_overlap") || is_min_cut_hbr) {
+        nids <- as.character(validation$issues$node_ids[[i]])
+        is_sample <- if (!is.null(sample_node_ids)) {
+          nids %in% sample_node_ids | startsWith(nids, "sample:")
+        } else {
+          startsWith(nids, "sample:")
+        }
+        sample_nids <- unique(nids[is_sample])
+        if (is_min_cut_hbr && length(batch_samples_map) > 0L) {
+          linked <- unique(unlist(batch_samples_map[nids], use.names = FALSE))
+          sample_nids <- unique(c(sample_nids, linked))
+        }
+        if (length(sample_nids) >= 2L) {
+          return(.leakage_issue_co_membership(sample_nids, smap))
+        }
+        if (is_min_cut_hbr && any(nids %in% as.character(constraint$metadata$severed_bridges %||% character()))) {
+          return(FALSE)
+        }
+      }
+      .leakage_severed_by_constraint(
+        code,
+        mode = if (is.na(mode)) NULL else mode,
+        via_modes = via_modes
+      )
     },
     logical(1)
   )
@@ -883,7 +1026,13 @@ summarize_leakage_risks <- function(graph, constraint = NULL, split_spec = NULL,
   }
 
   validation <- validation %||% validate_graph(graph)
-  validation_diag <- .leakage_summary_from_validation(validation, constraint = constraint)
+  sample_node_ids <- graph$nodes$data$node_id[graph$nodes$data$node_type == "Sample"]
+  validation_diag <- .leakage_summary_from_validation(
+    validation,
+    constraint = constraint,
+    sample_node_ids = sample_node_ids,
+    edge_data = graph$edges$data
+  )
   constraint_diag <- .leakage_summary_from_constraint(constraint)
   split_spec_info <- .leakage_summary_from_split_spec(split_spec)
 

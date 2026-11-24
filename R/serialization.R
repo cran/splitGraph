@@ -112,12 +112,76 @@
 
 # Convert an attrs list (one row's named list) into a JSON-friendly list.
 # Empty attrs become an empty named list (jsonlite emits `{}`); scalars stay
-# as scalars.
+# as scalars. Date-times are written as ISO 8601 with their UTC offset
+# (jsonlite would write local wall-clock time without one, which reads back
+# as UTC and moves the instant); difftime spans are written as ISO 8601
+# durations (keeping their duration unit instead of turning into bare numbers
+# or failing in jsonlite); dates stay "YYYY-MM-DD".
 .depgraph_attrs_to_json <- function(x) {
   if (is.null(x) || length(x) == 0L) {
     return(structure(list(), names = character()))
   }
-  as.list(x)
+  x <- as.list(x)
+  is_date <- vapply(x, inherits, logical(1), what = "Date")
+  x[is_date] <- lapply(x[is_date], .depgraph_date_to_iso)
+  is_dt <- vapply(x, inherits, logical(1), what = "POSIXt")
+  x[is_dt] <- lapply(x[is_dt], .depgraph_datetime_to_iso)
+  is_diff <- vapply(x, inherits, logical(1), what = "difftime")
+  x[is_diff] <- lapply(x[is_diff], .depgraph_difftime_to_iso)
+  x
+}
+
+.depgraph_date_to_iso <- function(v) {
+  num <- as.numeric(v)
+  bad <- is.na(num) | !is.finite(num)
+  out <- rep(NA_character_, length(v))
+  if (any(!bad)) {
+    out[!bad] <- format(as.Date(floor(num[!bad]), origin = "1970-01-01"), "%Y-%m-%d")
+  }
+  out
+}
+
+.depgraph_difftime_to_iso <- function(v) {
+  secs <- as.numeric(v, units = "secs")
+  vapply(secs, function(s) {
+    if (is.na(s) || !is.finite(s)) return(NA_character_)
+    if (s == 0) return("PT0S")
+    sgn <- if (s < 0) "-" else ""
+    abs_s <- abs(s)
+    days <- floor(abs_s / 86400)
+    rem <- abs_s - days * 86400
+    hours <- floor(rem / 3600)
+    rem <- rem - hours * 3600
+    mins <- floor(rem / 60)
+    rem <- rem - mins * 60
+    if (rem < 0) rem <- 0
+    fmt_num <- function(n) format(n, digits = 15, scientific = FALSE, trim = TRUE)
+    date_part <- if (days > 0) paste0(fmt_num(days), "D") else ""
+    time_parts <- c(
+      if (hours > 0) paste0(fmt_num(hours), "H"),
+      if (mins > 0) paste0(fmt_num(mins), "M"),
+      if (rem > 0) paste0(fmt_num(rem), "S")
+    )
+    time_part <- if (length(time_parts) > 0L) paste0("T", paste0(time_parts, collapse = "")) else ""
+    if (!nzchar(date_part) && !nzchar(time_part)) return("PT0S")
+    paste0(sgn, "P", date_part, time_part)
+  }, character(1))
+}
+
+.depgraph_datetime_to_iso <- function(v) {
+  v <- as.POSIXct(v)
+  tz <- attr(v, "tzone")
+  tz <- if (length(tz) && nzchar(tz[[1L]])) tz[[1L]] else ""
+  num <- as.numeric(v)
+  bad <- is.na(num) | !is.finite(num)
+  out <- rep(NA_character_, length(v))
+  ok <- which(!bad)
+  if (length(ok) > 0L) {
+    frac <- (num[ok] %% 1) != 0
+    fmt <- ifelse(frac, "%Y-%m-%dT%H:%M:%OS6%z", "%Y-%m-%dT%H:%M:%S%z")
+    out[ok] <- vapply(seq_along(ok), function(j) format(v[ok[j]], fmt[j], tz = tz), character(1))
+  }
+  out
 }
 
 # Reverse: a parsed JSON object becomes a named list (empty -> list()).
@@ -220,14 +284,14 @@
 #' @section JSON format:
 #' \preformatted{
 #' {
-#'   "$schema": "https://.../inst/schema/0.3.0/dependency_graph.schema.json",
+#'   "$schema": "https://.../inst/schema/0.4.0/dependency_graph.schema.json",
 #'   "splitGraph_object": "dependency_graph",
-#'   "schema_version": "0.3.0",
+#'   "schema_version": "0.4.0",
 #'   "metadata": {
 #'     "graph_name": "...",
 #'     "dataset_name": "...",
 #'     "created_at": "2026-04-29T10:11:12.000000+0000",
-#'     "schema_version": "0.3.0",
+#'     "schema_version": "0.4.0",
 #'     "validation_overrides": { ... },
 #'     "edge_sources": {
 #'       "subject_related_to": { "relation": "...", "from_col": "...",
@@ -312,6 +376,7 @@ write_dependency_graph <- function(graph, path, pretty = TRUE) {
     auto_unbox = TRUE,
     null = "null",
     na = "null",
+    digits = 17,
     pretty = isTRUE(pretty)
   )
   writeLines(json, path)
@@ -451,7 +516,7 @@ read_dependency_graph <- function(path, validate = FALSE) {
   if (is.null(meta_list) || length(meta_list) == 0L) return(list())
   out <- as.list(meta_list)
   # warnings/relations_used/enrichment_warnings are character vectors;
-  # jsonlite keeps them as lists when simplifyVector = FALSE — coerce back.
+  # jsonlite keeps them as lists when simplifyVector = FALSE -- coerce back.
   for (k in .depgraph_split_spec_vector_fields) {
     if (!is.null(out[[k]])) {
       out[[k]] <- as.character(unlist(out[[k]]))
@@ -481,9 +546,9 @@ read_dependency_graph <- function(path, validate = FALSE) {
 #' @section JSON format:
 #' \preformatted{
 #' {
-#'   "$schema": "https://.../inst/schema/0.3.0/split_spec.schema.json",
+#'   "$schema": "https://.../inst/schema/0.4.0/split_spec.schema.json",
 #'   "splitGraph_object": "split_spec",
-#'   "schema_version": "0.3.0",
+#'   "schema_version": "0.4.0",
 #'   "group_var": "group_id",
 #'   "block_vars": ["batch_group", "study_group"],
 #'   "time_var": "order_rank",
@@ -560,6 +625,7 @@ write_split_spec <- function(spec, path, pretty = TRUE) {
     auto_unbox = TRUE,
     null = "null",
     na = "null",
+    digits = 17,
     pretty = isTRUE(pretty)
   )
   writeLines(json, path)
